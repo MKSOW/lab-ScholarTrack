@@ -1,7 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// ============================================================================
+//  ScholarTrack — Schéma Prisma
+//  Système de gestion académique : cours, notes, présences, inscriptions
+// ============================================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -10,4 +10,216 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+//  ENUMS
+// ============================================================================
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED // absence justifiée — comptera comme "présent" dans le taux
+}
+
+// ============================================================================
+//  AUTHENTIFICATION (Better Auth)
+//  ⚠️ Better Auth va générer/exiger ces tables. On les déclare ici en
+//  ajoutant nos champs métier (role + relations).
+//  Les noms de champs respectent strictement la convention Better Auth.
+// ============================================================================
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Champ métier ajouté
+  role Role @default(STUDENT)
+
+  // Relations Better Auth
+  sessions Session[]
+  accounts Account[]
+
+  // Relations métier
+  taughtCourses Course[]     @relation("CourseTeacher")
+  enrollments   Enrollment[]
+  grades        Grade[]
+  attendances   Attendance[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String? // hashé par Better Auth pour l'email/password
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verifications")
+}
+
+// ============================================================================
+//  MÉTIER — Cours
+// ============================================================================
+
+model Course {
+  id          String   @id @default(cuid())
+  code        String   @unique // ex: "MATH101"
+  name        String // ex: "Mathématiques avancées"
+  description String?
+  capacity    Int // capacité max d'inscrits
+  semester    String // ex: "2025-S1"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Le prof responsable du cours
+  teacherId String
+  teacher   User   @relation("CourseTeacher", fields: [teacherId], references: [id])
+
+  // Relations
+  assessmentTypes AssessmentType[]
+  enrollments     Enrollment[]
+  grades          Grade[]
+  sessions        CourseSession[]
+
+  @@map("courses")
+}
+
+// Pondération configurable par cours
+// ex: pour MATH101 → { name: "CC", weight: 30 }, { name: "EXAM", weight: 50 }, { name: "TP", weight: 20 }
+model AssessmentType {
+  id       String  @id @default(cuid())
+  name     String // ex: "CC", "EXAM", "TP"
+  weight   Decimal @db.Decimal(5, 2) // 0 → 100 (pourcentage)
+  courseId String
+  course   Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  grades Grade[]
+
+  // Un cours ne peut pas avoir 2 types d'éval portant le même nom
+  @@unique([courseId, name])
+  @@map("assessment_types")
+}
+
+// ============================================================================
+//  MÉTIER — Inscriptions
+// ============================================================================
+
+model Enrollment {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId   String
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrolledAt DateTime @default(now())
+
+  // Un étudiant ne peut s'inscrire qu'une fois à un cours donné
+  @@unique([studentId, courseId])
+  @@map("enrollments")
+}
+
+// ============================================================================
+//  MÉTIER — Notes
+// ============================================================================
+
+model Grade {
+  id       String   @id @default(cuid())
+  value    Decimal  @db.Decimal(5, 2) // ex: 14.50 / 20
+  comment  String?
+  gradedAt DateTime @default(now())
+
+  studentId String
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  assessmentTypeId String
+  assessmentType   AssessmentType @relation(fields: [assessmentTypeId], references: [id])
+
+  @@index([studentId, courseId])
+  @@map("grades")
+}
+
+// ============================================================================
+//  MÉTIER — Présences
+// ============================================================================
+
+model CourseSession {
+  id          String    @id @default(cuid())
+  date        DateTime
+  topic       String? // ex: "Chapitre 3 — Intégrales"
+  cancelledAt DateTime? // null = séance valide, sinon = annulée
+  createdAt   DateTime  @default(now())
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  attendances Attendance[]
+
+  @@index([courseId, date])
+  @@map("course_sessions")
+}
+
+model Attendance {
+  id         String           @id @default(cuid())
+  status     AttendanceStatus
+  recordedAt DateTime         @default(now())
+
+  studentId String
+  student   User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  courseSessionId String
+  courseSession   CourseSession @relation(fields: [courseSessionId], references: [id], onDelete: Cascade)
+
+  // Un étudiant a UNE seule présence par séance
+  @@unique([studentId, courseSessionId])
+  @@map("attendances")
 }
