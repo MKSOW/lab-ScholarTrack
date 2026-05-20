@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: scholartrack-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: scholartrack
+      POSTGRES_PASSWORD: scholartrack_dev
+      POSTGRES_DB: scholartrack
+    ports:
+      - "5434:5432"
+    volumes:
+      - scholartrack-pgdata:/var/lib/postgresql/data
+
+volumes:
+  scholartrack-pgdata:
