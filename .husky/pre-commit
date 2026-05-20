@@ -1,1 +1,7 @@
-npm test
+echo "🔍 Running lint-staged..."
+npx lint-staged
+
+echo "🧪 Running unit tests..."
+npm test -- --passWithNoTests --bail
+
+echo "✅ Pre-commit checks passed"

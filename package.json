@@ -62,6 +62,12 @@
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
   },
+  "lint-staged": {
+  "*.ts": [
+    "eslint --fix",
+    "prettier --write"
+  ]
+},
   "jest": {
     "moduleFileExtensions": [
       "js",
