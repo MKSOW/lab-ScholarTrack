@@ -68,7 +68,7 @@
     "seed": "ts-node --transpile-only prisma/seed.ts"
   },
   "lint-staged": {
-    "*.ts": [
+    "{src,test,prisma}/**/*.ts": [
       "eslint --fix",
       "prettier --write"
     ]
