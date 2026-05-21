@@ -189,19 +189,30 @@ let CoursesService = CoursesService_1 = class CoursesService {
         if (!student || student.role !== client_1.Role.STUDENT) {
             throw new common_1.NotFoundException(`Aucun étudiant trouvé avec l'identifiant "${studentId}"`);
         }
-        const existing = await this.prisma.enrollment.findUnique({
-            where: { studentId_courseId: { studentId, courseId } },
-        });
-        if (existing) {
-            throw new common_1.ConflictException("L'étudiant est déjà inscrit à ce cours");
-        }
-        const enrollment = await this.prisma.enrollment.create({
-            data: { studentId, courseId },
-            include: {
-                student: { select: { id: true, name: true, email: true } },
-                course: { select: { id: true, code: true, name: true } },
-            },
-        });
+        const enrollment = await this.prisma.$transaction(async (tx) => {
+            const course = await tx.course.findUnique({
+                where: { id: courseId },
+                select: { capacity: true, _count: { select: { enrollments: true } } },
+            });
+            if (!course)
+                throw new common_1.NotFoundException('Cours introuvable');
+            const existing = await tx.enrollment.findUnique({
+                where: { studentId_courseId: { studentId, courseId } },
+            });
+            if (existing) {
+                throw new common_1.ConflictException("L'étudiant est déjà inscrit à ce cours");
+            }
+            if (course._count.enrollments >= course.capacity) {
+                throw new common_1.ConflictException('La capacité maximale de ce cours est atteinte');
+            }
+            return tx.enrollment.create({
+                data: { studentId, courseId },
+                include: {
+                    student: { select: { id: true, name: true, email: true } },
+                    course: { select: { id: true, code: true, name: true } },
+                },
+            });
+        }, { isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
         this.logger.log(`Inscription : ${student.name} → cours ${enrollment.course.code}`);
         return enrollment;
     }
