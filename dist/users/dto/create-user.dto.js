@@ -33,7 +33,9 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiProperty)({ example: 'motdepasse123', minLength: 8 }),
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MinLength)(8, { message: 'Le mot de passe doit contenir au moins 8 caractères' }),
+    (0, class_validator_1.MinLength)(8, {
+        message: 'Le mot de passe doit contenir au moins 8 caractères',
+    }),
     __metadata("design:type", String)
 ], CreateUserDto.prototype, "password", void 0);
 __decorate([

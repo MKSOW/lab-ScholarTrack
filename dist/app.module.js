@@ -12,6 +12,7 @@ const nestjs_better_auth_1 = require("@thallesp/nestjs-better-auth");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 const prisma_module_1 = require("./prisma/prisma.module");
+const users_module_1 = require("./users/users.module");
 const auth_1 = require("./auth/auth");
 let AppModule = class AppModule {
 };
@@ -21,6 +22,7 @@ exports.AppModule = AppModule = __decorate([
         imports: [
             prisma_module_1.PrismaModule,
             nestjs_better_auth_1.AuthModule.forRoot({ auth: auth_1.auth }),
+            users_module_1.UsersModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

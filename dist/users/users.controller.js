@@ -30,7 +30,9 @@ exports.UsersController = UsersController;
 __decorate([
     (0, common_1.Post)(),
     (0, common_1.HttpCode)(common_1.HttpStatus.CREATED),
-    (0, swagger_1.ApiOperation)({ summary: 'Créer un compte STUDENT ou TEACHER (admin uniquement)' }),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Créer un compte STUDENT ou TEACHER (admin uniquement)',
+    }),
     (0, swagger_1.ApiResponse)({ status: 201, description: 'Compte créé avec succès' }),
     (0, swagger_1.ApiResponse)({ status: 400, description: 'Données invalides' }),
     (0, swagger_1.ApiResponse)({ status: 401, description: 'Non authentifié' }),
