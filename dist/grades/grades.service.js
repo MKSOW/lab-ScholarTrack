@@ -27,7 +27,8 @@ let GradesService = GradesService_1 = class GradesService {
         });
         if (!course)
             throw new common_1.NotFoundException('Cours introuvable');
-        if (requestingUser.role === client_1.Role.TEACHER && course.teacherId !== requestingUser.id) {
+        if (requestingUser.role === client_1.Role.TEACHER &&
+            course.teacherId !== requestingUser.id) {
             throw new common_1.ForbiddenException("Accès refusé : vous n'êtes pas le professeur de ce cours");
         }
         const student = await this.prisma.user.findUnique({
@@ -39,7 +40,10 @@ let GradesService = GradesService_1 = class GradesService {
         }
         const enrollment = await this.prisma.enrollment.findUnique({
             where: {
-                studentId_courseId: { studentId: dto.studentId, courseId: dto.courseId },
+                studentId_courseId: {
+                    studentId: dto.studentId,
+                    courseId: dto.courseId,
+                },
             },
         });
         if (!enrollment) {
@@ -85,7 +89,8 @@ let GradesService = GradesService_1 = class GradesService {
         });
         if (!course)
             throw new common_1.NotFoundException('Cours introuvable');
-        if (requestingUser.role === client_1.Role.TEACHER && course.teacherId !== requestingUser.id) {
+        if (requestingUser.role === client_1.Role.TEACHER &&
+            course.teacherId !== requestingUser.id) {
             throw new common_1.ForbiddenException("Accès refusé : vous n'êtes pas le professeur de ce cours");
         }
         return this.prisma.grade.findMany({
@@ -98,8 +103,9 @@ let GradesService = GradesService_1 = class GradesService {
         });
     }
     async findByStudent(studentId, requestingUser) {
-        if (requestingUser.role === client_1.Role.STUDENT && requestingUser.id !== studentId) {
-            throw new common_1.ForbiddenException("Accès refusé : vous ne pouvez consulter que vos propres notes");
+        if (requestingUser.role === client_1.Role.STUDENT &&
+            requestingUser.id !== studentId) {
+            throw new common_1.ForbiddenException('Accès refusé : vous ne pouvez consulter que vos propres notes');
         }
         const student = await this.prisma.user.findUnique({
             where: { id: studentId },
@@ -114,7 +120,9 @@ let GradesService = GradesService_1 = class GradesService {
         return this.prisma.grade.findMany({
             where: { studentId, ...courseFilter },
             include: {
-                course: { select: { id: true, code: true, name: true, semester: true } },
+                course: {
+                    select: { id: true, code: true, name: true, semester: true },
+                },
                 assessmentType: { select: { id: true, name: true, weight: true } },
             },
             orderBy: { gradedAt: 'desc' },

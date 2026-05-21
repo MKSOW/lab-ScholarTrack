@@ -43,8 +43,14 @@ __decorate([
     (0, swagger_1.ApiResponse)({ status: 201, description: 'Note saisie avec succès' }),
     (0, swagger_1.ApiResponse)({ status: 400, description: 'Étudiant non inscrit au cours' }),
     (0, swagger_1.ApiResponse)({ status: 403, description: 'Accès refusé' }),
-    (0, swagger_1.ApiResponse)({ status: 404, description: 'Cours, étudiant ou type évaluation introuvable' }),
-    (0, swagger_1.ApiResponse)({ status: 409, description: 'Note déjà saisie pour ce type d\'évaluation' }),
+    (0, swagger_1.ApiResponse)({
+        status: 404,
+        description: 'Cours, étudiant ou type évaluation introuvable',
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: 409,
+        description: "Note déjà saisie pour ce type d'évaluation",
+    }),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -54,7 +60,7 @@ __decorate([
 __decorate([
     (0, common_1.Get)('course/:courseId'),
     (0, roles_decorator_1.Roles)(client_1.Role.TEACHER, client_1.Role.ADMIN),
-    (0, swagger_1.ApiOperation)({ summary: 'Notes d\'un cours (teacher propriétaire ou admin)' }),
+    (0, swagger_1.ApiOperation)({ summary: "Notes d'un cours (teacher propriétaire ou admin)" }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Liste des notes du cours' }),
     (0, swagger_1.ApiResponse)({ status: 403, description: 'Accès refusé' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Cours introuvable' }),
@@ -67,9 +73,9 @@ __decorate([
 __decorate([
     (0, common_1.Get)('student/:studentId'),
     (0, swagger_1.ApiOperation)({
-        summary: 'Notes d\'un étudiant — student : ses propres notes ; teacher : ses cours uniquement ; admin : tout',
+        summary: "Notes d'un étudiant — student : ses propres notes ; teacher : ses cours uniquement ; admin : tout",
     }),
-    (0, swagger_1.ApiResponse)({ status: 200, description: 'Liste des notes de l\'étudiant' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: "Liste des notes de l'étudiant" }),
     (0, swagger_1.ApiResponse)({ status: 403, description: 'Accès refusé' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Étudiant introuvable' }),
     __param(0, (0, common_1.Param)('studentId')),
