@@ -84,6 +84,9 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "moduleNameMapper": {
+      "^@thallesp/nestjs-better-auth$": "<rootDir>/../test/mocks/nestjs-better-auth.mock.ts"
+    },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
