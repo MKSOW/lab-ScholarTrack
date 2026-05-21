@@ -17,7 +17,9 @@ import { CheckOwnership } from '../auth/decorators/check-ownership.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { OwnershipGuard } from '../auth/guards/ownership.guard';
 import { CoursesService } from './courses.service';
+import { CapacityPipe } from './pipes/capacity.pipe';
 import { CreateCourseDto } from './dto/create-course.dto';
+import { EnrollStudentDto } from './dto/enroll-student.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 
 type RequestUser = { id: string; role: Role };
@@ -39,6 +41,26 @@ export class CoursesController {
   @ApiResponse({ status: 409, description: 'Code cours déjà utilisé' })
   create(@Body() dto: CreateCourseDto) {
     return this.coursesService.create(dto);
+  }
+
+  @Post(':id/enroll')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Inscrire un étudiant à un cours (admin uniquement)',
+  })
+  @ApiResponse({ status: 201, description: 'Étudiant inscrit avec succès' })
+  @ApiResponse({ status: 404, description: 'Cours ou étudiant introuvable' })
+  @ApiResponse({
+    status: 409,
+    description: 'Cours complet ou étudiant déjà inscrit',
+  })
+  enroll(
+    // CapacityPipe vérifie la capacité du cours avant d'atteindre le service
+    @Param('id', CapacityPipe) courseId: string,
+    @Body() dto: EnrollStudentDto,
+  ) {
+    return this.coursesService.enroll(courseId, dto.studentId);
   }
 
   @Get()

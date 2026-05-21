@@ -11,13 +11,14 @@ const common_1 = require("@nestjs/common");
 const ownership_guard_1 = require("../auth/guards/ownership.guard");
 const courses_controller_1 = require("./courses.controller");
 const courses_service_1 = require("./courses.service");
+const capacity_pipe_1 = require("./pipes/capacity.pipe");
 let CoursesModule = class CoursesModule {
 };
 exports.CoursesModule = CoursesModule;
 exports.CoursesModule = CoursesModule = __decorate([
     (0, common_1.Module)({
         controllers: [courses_controller_1.CoursesController],
-        providers: [courses_service_1.CoursesService, ownership_guard_1.OwnershipGuard],
+        providers: [courses_service_1.CoursesService, ownership_guard_1.OwnershipGuard, capacity_pipe_1.CapacityPipe],
     })
 ], CoursesModule);
 //# sourceMappingURL=courses.module.js.map

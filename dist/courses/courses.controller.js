@@ -20,7 +20,9 @@ const check_ownership_decorator_1 = require("../auth/decorators/check-ownership.
 const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const ownership_guard_1 = require("../auth/guards/ownership.guard");
 const courses_service_1 = require("./courses.service");
+const capacity_pipe_1 = require("./pipes/capacity.pipe");
 const create_course_dto_1 = require("./dto/create-course.dto");
+const enroll_student_dto_1 = require("./dto/enroll-student.dto");
 const update_course_dto_1 = require("./dto/update-course.dto");
 let CoursesController = class CoursesController {
     coursesService;
@@ -29,6 +31,9 @@ let CoursesController = class CoursesController {
     }
     create(dto) {
         return this.coursesService.create(dto);
+    }
+    enroll(courseId, dto) {
+        return this.coursesService.enroll(courseId, dto.studentId);
     }
     findAll(req) {
         return this.coursesService.findAll(req.user);
@@ -60,6 +65,23 @@ __decorate([
     __metadata("design:paramtypes", [create_course_dto_1.CreateCourseDto]),
     __metadata("design:returntype", void 0)
 ], CoursesController.prototype, "create", null);
+__decorate([
+    (0, common_1.Post)(':id/enroll'),
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN),
+    (0, common_1.HttpCode)(common_1.HttpStatus.CREATED),
+    (0, swagger_1.ApiOperation)({ summary: 'Inscrire un étudiant à un cours (admin uniquement)' }),
+    (0, swagger_1.ApiResponse)({ status: 201, description: 'Étudiant inscrit avec succès' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Cours ou étudiant introuvable' }),
+    (0, swagger_1.ApiResponse)({
+        status: 409,
+        description: 'Cours complet ou étudiant déjà inscrit',
+    }),
+    __param(0, (0, common_1.Param)('id', capacity_pipe_1.CapacityPipe)),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, enroll_student_dto_1.EnrollStudentDto]),
+    __metadata("design:returntype", void 0)
+], CoursesController.prototype, "enroll", null);
 __decorate([
     (0, common_1.Get)(),
     (0, swagger_1.ApiOperation)({

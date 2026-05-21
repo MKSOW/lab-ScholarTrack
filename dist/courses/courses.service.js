@@ -170,6 +170,30 @@ let CoursesService = CoursesService_1 = class CoursesService {
         this.logger.log(`Cours supprimé : ${course.code}`);
         return { message: `Cours "${course.code}" supprimé avec succès` };
     }
+    async enroll(courseId, studentId) {
+        const student = await this.prisma.user.findUnique({
+            where: { id: studentId },
+            select: { id: true, role: true, name: true },
+        });
+        if (!student || student.role !== client_1.Role.STUDENT) {
+            throw new common_1.NotFoundException(`Aucun étudiant trouvé avec l'identifiant "${studentId}"`);
+        }
+        const existing = await this.prisma.enrollment.findUnique({
+            where: { studentId_courseId: { studentId, courseId } },
+        });
+        if (existing) {
+            throw new common_1.ConflictException("L'étudiant est déjà inscrit à ce cours");
+        }
+        const enrollment = await this.prisma.enrollment.create({
+            data: { studentId, courseId },
+            include: {
+                student: { select: { id: true, name: true, email: true } },
+                course: { select: { id: true, code: true, name: true } },
+            },
+        });
+        this.logger.log(`Inscription : ${student.name} → cours ${enrollment.course.code}`);
+        return enrollment;
+    }
 };
 exports.CoursesService = CoursesService;
 exports.CoursesService = CoursesService = CoursesService_1 = __decorate([
