@@ -50,7 +50,10 @@ __decorate([
     (0, common_1.HttpCode)(common_1.HttpStatus.CREATED),
     (0, swagger_1.ApiOperation)({ summary: 'Créer un cours (admin uniquement)' }),
     (0, swagger_1.ApiResponse)({ status: 201, description: 'Cours créé avec succès' }),
-    (0, swagger_1.ApiResponse)({ status: 400, description: 'Données invalides ou somme des poids ≠ 100' }),
+    (0, swagger_1.ApiResponse)({
+        status: 400,
+        description: 'Données invalides ou somme des poids ≠ 100',
+    }),
     (0, swagger_1.ApiResponse)({ status: 409, description: 'Code cours déjà utilisé' }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -70,7 +73,7 @@ __decorate([
 ], CoursesController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    (0, swagger_1.ApiOperation)({ summary: 'Obtenir le détail d\'un cours' }),
+    (0, swagger_1.ApiOperation)({ summary: "Obtenir le détail d'un cours" }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Détail du cours' }),
     (0, swagger_1.ApiResponse)({ status: 403, description: 'Accès refusé' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Cours introuvable' }),
@@ -85,7 +88,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.TEACHER),
     (0, check_ownership_decorator_1.CheckOwnership)('id'),
     (0, common_1.UseGuards)(ownership_guard_1.OwnershipGuard),
-    (0, swagger_1.ApiOperation)({ summary: 'Mettre à jour un cours (admin ou professeur propriétaire)' }),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Mettre à jour un cours (admin ou professeur propriétaire)',
+    }),
     (0, swagger_1.ApiResponse)({ status: 200, description: 'Cours mis à jour' }),
     (0, swagger_1.ApiResponse)({ status: 403, description: 'Accès refusé' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Cours introuvable' }),
