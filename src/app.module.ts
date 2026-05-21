@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
+import { CoursesModule } from './courses/courses.module';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { auth } from './auth/auth';
 
@@ -16,6 +17,7 @@ import { auth } from './auth/auth';
     // pour le re-enregistrer explicitement ci-dessous et garantir l'ordre d'exécution.
     AuthModule.forRoot({ auth, disableGlobalAuthGuard: true }),
     UsersModule,
+    CoursesModule,
   ],
   controllers: [AppController],
   providers: [

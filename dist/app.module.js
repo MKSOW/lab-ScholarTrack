@@ -15,6 +15,7 @@ const app_service_1 = require("./app.service");
 const rate_limit_middleware_1 = require("./common/middleware/rate-limit.middleware");
 const prisma_module_1 = require("./prisma/prisma.module");
 const users_module_1 = require("./users/users.module");
+const courses_module_1 = require("./courses/courses.module");
 const roles_guard_1 = require("./auth/guards/roles.guard");
 const auth_1 = require("./auth/auth");
 let AppModule = class AppModule {
@@ -29,6 +30,7 @@ exports.AppModule = AppModule = __decorate([
             prisma_module_1.PrismaModule,
             nestjs_better_auth_1.AuthModule.forRoot({ auth: auth_1.auth, disableGlobalAuthGuard: true }),
             users_module_1.UsersModule,
+            courses_module_1.CoursesModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [

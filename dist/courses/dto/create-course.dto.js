@@ -58,7 +58,10 @@ __decorate([
     __metadata("design:type", String)
 ], CreateCourseDto.prototype, "description", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: 30, description: 'Nombre maximum d\'étudiants inscrits' }),
+    (0, swagger_1.ApiProperty)({
+        example: 30,
+        description: "Nombre maximum d'étudiants inscrits",
+    }),
     (0, class_validator_1.IsInt)(),
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
@@ -70,7 +73,10 @@ __decorate([
     __metadata("design:type", String)
 ], CreateCourseDto.prototype, "semester", void 0);
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: 'clxxxid123', description: 'Identifiant de l\'enseignant' }),
+    (0, swagger_1.ApiProperty)({
+        example: 'clxxxid123',
+        description: "Identifiant de l'enseignant",
+    }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
@@ -78,7 +84,7 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiProperty)({
         type: [assessment_type_dto_1.AssessmentTypeDto],
-        description: 'Types d\'évaluation avec leurs poids (somme = 100)',
+        description: "Types d'évaluation avec leurs poids (somme = 100)",
     }),
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ArrayMinSize)(1),
