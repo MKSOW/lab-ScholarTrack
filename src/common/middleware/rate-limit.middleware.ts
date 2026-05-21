@@ -6,9 +6,9 @@ interface RateLimitEntry {
   windowStart: number;
 }
 
-// Pas de @Injectable() : NestJS instancie les middlewares directement (new ClassName())
-// sans passer par le système DI. Les paramètres primitifs du constructeur
-// ne peuvent pas être résolus par DI — on les garde pour les tests uniquement.
+// PAS de @Injectable() : les paramètres primitifs du constructeur (number, Function)
+// ne peuvent pas être résolus par le système DI de NestJS.
+// Ce middleware est instancié manuellement dans AppModule.configure().
 export class RateLimitMiddleware implements NestMiddleware {
   private readonly store = new Map<string, RateLimitEntry>();
 
