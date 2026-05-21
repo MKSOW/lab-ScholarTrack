@@ -41,4 +41,12 @@ export default tseslint.config(
       'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
+  {
+    // Dans les fichiers de test, expect(mock.method) est un pattern Jest standard.
+    // @typescript-eslint/unbound-method génère des faux positifs dans ce contexte.
+    files: ['**/*.spec.ts'],
+    rules: {
+      '@typescript-eslint/unbound-method': 'off',
+    },
+  },
 );
