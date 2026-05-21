@@ -15,6 +15,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
+const client_1 = require("@prisma/client");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const users_service_1 = require("./users.service");
 const create_user_dto_1 = require("./dto/create-user.dto");
 let UsersController = class UsersController {
@@ -44,6 +46,7 @@ __decorate([
 ], UsersController.prototype, "create", null);
 exports.UsersController = UsersController = __decorate([
     (0, swagger_1.ApiTags)('users'),
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN),
     (0, common_1.Controller)('users'),
     __metadata("design:paramtypes", [users_service_1.UsersService])
 ], UsersController);
