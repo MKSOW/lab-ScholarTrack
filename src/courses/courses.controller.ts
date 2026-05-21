@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import { CoursesService } from './courses.service';
 import { CapacityPipe } from './pipes/capacity.pipe';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { EnrollStudentDto } from './dto/enroll-student.dto';
+import { FilterCoursesDto } from './dto/filter-courses.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 
 type RequestUser = { id: string; role: Role };
@@ -65,12 +67,14 @@ export class CoursesController {
 
   @Get()
   @ApiOperation({
-    summary:
-      'Lister les cours (admin: tous, teacher: les siens, student: ses inscriptions)',
+    summary: 'Lister les cours — filtrage (semestre, enseignant) et pagination',
   })
-  @ApiResponse({ status: 200, description: 'Liste des cours' })
-  findAll(@Req() req: { user: RequestUser }) {
-    return this.coursesService.findAll(req.user);
+  @ApiResponse({ status: 200, description: 'Liste paginée des cours' })
+  findAll(
+    @Query() filter: FilterCoursesDto,
+    @Req() req: { user: RequestUser },
+  ) {
+    return this.coursesService.findAll(req.user, filter);
   }
 
   @Get(':id')

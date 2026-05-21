@@ -23,6 +23,7 @@ const courses_service_1 = require("./courses.service");
 const capacity_pipe_1 = require("./pipes/capacity.pipe");
 const create_course_dto_1 = require("./dto/create-course.dto");
 const enroll_student_dto_1 = require("./dto/enroll-student.dto");
+const filter_courses_dto_1 = require("./dto/filter-courses.dto");
 const update_course_dto_1 = require("./dto/update-course.dto");
 let CoursesController = class CoursesController {
     coursesService;
@@ -35,8 +36,8 @@ let CoursesController = class CoursesController {
     enroll(courseId, dto) {
         return this.coursesService.enroll(courseId, dto.studentId);
     }
-    findAll(req) {
-        return this.coursesService.findAll(req.user);
+    findAll(filter, req) {
+        return this.coursesService.findAll(req.user, filter);
     }
     findOne(id, req) {
         return this.coursesService.findOne(id, req.user);
@@ -87,12 +88,13 @@ __decorate([
 __decorate([
     (0, common_1.Get)(),
     (0, swagger_1.ApiOperation)({
-        summary: 'Lister les cours (admin: tous, teacher: les siens, student: ses inscriptions)',
+        summary: 'Lister les cours — filtrage (semestre, enseignant) et pagination',
     }),
-    (0, swagger_1.ApiResponse)({ status: 200, description: 'Liste des cours' }),
-    __param(0, (0, common_1.Req)()),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Liste paginée des cours' }),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [filter_courses_dto_1.FilterCoursesDto, Object]),
     __metadata("design:returntype", void 0)
 ], CoursesController.prototype, "findAll", null);
 __decorate([

@@ -21,7 +21,10 @@ class FilterCoursesDto {
 }
 exports.FilterCoursesDto = FilterCoursesDto;
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ example: '2025-S1', description: 'Filtrer par semestre' }),
+    (0, swagger_1.ApiPropertyOptional)({
+        example: '2025-S1',
+        description: 'Filtrer par semestre',
+    }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
@@ -36,7 +39,10 @@ __decorate([
     __metadata("design:type", String)
 ], FilterCoursesDto.prototype, "teacherId", void 0);
 __decorate([
-    (0, swagger_1.ApiPropertyOptional)({ example: 1, description: 'Numéro de page (défaut : 1)' }),
+    (0, swagger_1.ApiPropertyOptional)({
+        example: 1,
+        description: 'Numéro de page (défaut : 1)',
+    }),
     (0, class_transformer_1.Type)(() => Number),
     (0, class_validator_1.IsInt)(),
     (0, class_validator_1.Min)(1),

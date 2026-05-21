@@ -2,6 +2,7 @@ import { Role } from '@prisma/client';
 import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { EnrollStudentDto } from './dto/enroll-student.dto';
+import { FilterCoursesDto } from './dto/filter-courses.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 type RequestUser = {
     id: string;
@@ -50,7 +51,7 @@ export declare class CoursesController {
         courseId: string;
         enrolledAt: Date;
     }>;
-    findAll(req: {
+    findAll(filter: FilterCoursesDto, req: {
         user: RequestUser;
     }): Promise<{
         data: ({
