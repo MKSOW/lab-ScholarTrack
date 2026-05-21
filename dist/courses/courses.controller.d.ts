@@ -52,49 +52,40 @@ export declare class CoursesController {
     }>;
     findAll(req: {
         user: RequestUser;
-    }): Promise<({
-        assessmentTypes: {
+    }): Promise<{
+        data: ({
+            teacher: {
+                name: string;
+                id: string;
+                email: string;
+            };
+            assessmentTypes: {
+                name: string;
+                id: string;
+                weight: import("@prisma/client/runtime/library").Decimal;
+                courseId: string;
+            }[];
+            _count: {
+                enrollments: number;
+            };
+        } & {
             name: string;
             id: string;
-            weight: import("@prisma/client/runtime/library").Decimal;
-            courseId: string;
-        }[];
-        _count: {
-            enrollments: number;
+            code: string;
+            description: string | null;
+            capacity: number;
+            semester: string;
+            createdAt: Date;
+            updatedAt: Date;
+            teacherId: string;
+        })[];
+        meta: {
+            total: number;
+            page: number;
+            limit: number;
+            totalPages: number;
         };
-    } & {
-        name: string;
-        id: string;
-        code: string;
-        description: string | null;
-        capacity: number;
-        semester: string;
-        createdAt: Date;
-        updatedAt: Date;
-        teacherId: string;
-    })[] | ({
-        teacher: {
-            name: string;
-            id: string;
-            email: string;
-        };
-        assessmentTypes: {
-            name: string;
-            id: string;
-            weight: import("@prisma/client/runtime/library").Decimal;
-            courseId: string;
-        }[];
-    } & {
-        name: string;
-        id: string;
-        code: string;
-        description: string | null;
-        capacity: number;
-        semester: string;
-        createdAt: Date;
-        updatedAt: Date;
-        teacherId: string;
-    })[]>;
+    }>;
     findOne(id: string, req: {
         user: RequestUser;
     }): Promise<{

@@ -59,35 +59,46 @@ let CoursesService = CoursesService_1 = class CoursesService {
         this.logger.log(`Cours créé : ${course.code} — ${course.name}`);
         return course;
     }
-    async findAll(user) {
-        if (user.role === client_1.Role.ADMIN) {
-            return this.prisma.course.findMany({
+    async findAll(user, filter) {
+        const page = filter.page ?? 1;
+        const limit = filter.limit ?? 10;
+        const skip = (page - 1) * limit;
+        const where = {};
+        if (filter.semester) {
+            where.semester = filter.semester;
+        }
+        if (user.role === client_1.Role.TEACHER) {
+            where.teacherId = user.id;
+        }
+        else if (user.role === client_1.Role.STUDENT) {
+            where.enrollments = { some: { studentId: user.id } };
+        }
+        else if (filter.teacherId) {
+            where.teacherId = filter.teacherId;
+        }
+        const [data, total] = await this.prisma.$transaction([
+            this.prisma.course.findMany({
+                where,
                 include: {
                     assessmentTypes: true,
                     teacher: { select: { id: true, name: true, email: true } },
                     _count: { select: { enrollments: true } },
                 },
                 orderBy: { createdAt: 'desc' },
-            });
-        }
-        if (user.role === client_1.Role.TEACHER) {
-            return this.prisma.course.findMany({
-                where: { teacherId: user.id },
-                include: {
-                    assessmentTypes: true,
-                    _count: { select: { enrollments: true } },
-                },
-                orderBy: { createdAt: 'desc' },
-            });
-        }
-        return this.prisma.course.findMany({
-            where: { enrollments: { some: { studentId: user.id } } },
-            include: {
-                assessmentTypes: true,
-                teacher: { select: { id: true, name: true, email: true } },
+                skip,
+                take: limit,
+            }),
+            this.prisma.course.count({ where }),
+        ]);
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
             },
-            orderBy: { createdAt: 'desc' },
-        });
+        };
     }
     async findOne(id, user) {
         const course = await this.prisma.course.findUnique({

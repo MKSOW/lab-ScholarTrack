@@ -5,9 +5,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCourseDto } from './dto/create-course.dto';
+import { FilterCoursesDto } from './dto/filter-courses.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 
 export type CourseUser = { id: string; role: Role };
@@ -67,38 +68,54 @@ export class CoursesService {
     return course;
   }
 
-  async findAll(user: CourseUser) {
-    if (user.role === Role.ADMIN) {
-      return this.prisma.course.findMany({
+  async findAll(user: CourseUser, filter: FilterCoursesDto) {
+    const page = filter.page ?? 1;
+    const limit = filter.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    // Construction du filtre : base commune + restriction selon le rôle
+    const where: Prisma.CourseWhereInput = {};
+    if (filter.semester) {
+      where.semester = filter.semester;
+    }
+
+    if (user.role === Role.TEACHER) {
+      // Un enseignant ne voit que ses propres cours
+      where.teacherId = user.id;
+    } else if (user.role === Role.STUDENT) {
+      // Un étudiant ne voit que les cours où il est inscrit
+      where.enrollments = { some: { studentId: user.id } };
+    } else if (filter.teacherId) {
+      // Admin uniquement : filtre facultatif par enseignant
+      where.teacherId = filter.teacherId;
+    }
+
+    // findMany + count exécutés dans une seule transaction (un aller-retour DB).
+    // count utilise le même where → total cohérent avec les données paginées.
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.course.findMany({
+        where,
         include: {
           assessmentTypes: true,
           teacher: { select: { id: true, name: true, email: true } },
           _count: { select: { enrollments: true } },
         },
         orderBy: { createdAt: 'desc' },
-      });
-    }
+        skip,
+        take: limit,
+      }),
+      this.prisma.course.count({ where }),
+    ]);
 
-    if (user.role === Role.TEACHER) {
-      return this.prisma.course.findMany({
-        where: { teacherId: user.id },
-        include: {
-          assessmentTypes: true,
-          _count: { select: { enrollments: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-    }
-
-    // STUDENT : seulement les cours auxquels il est inscrit
-    return this.prisma.course.findMany({
-      where: { enrollments: { some: { studentId: user.id } } },
-      include: {
-        assessmentTypes: true,
-        teacher: { select: { id: true, name: true, email: true } },
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
-      orderBy: { createdAt: 'desc' },
-    });
+    };
   }
 
   async findOne(id: string, user: CourseUser) {

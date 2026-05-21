@@ -1,6 +1,7 @@
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCourseDto } from './dto/create-course.dto';
+import { FilterCoursesDto } from './dto/filter-courses.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 export type CourseUser = {
     id: string;
@@ -19,7 +20,7 @@ export declare class CoursesService {
         assessmentTypes: {
             name: string;
             id: string;
-            weight: import("@prisma/client/runtime/library").Decimal;
+            weight: Prisma.Decimal;
             courseId: string;
         }[];
     } & {
@@ -33,49 +34,40 @@ export declare class CoursesService {
         updatedAt: Date;
         teacherId: string;
     }>;
-    findAll(user: CourseUser): Promise<({
-        assessmentTypes: {
+    findAll(user: CourseUser, filter: FilterCoursesDto): Promise<{
+        data: ({
+            teacher: {
+                name: string;
+                id: string;
+                email: string;
+            };
+            assessmentTypes: {
+                name: string;
+                id: string;
+                weight: Prisma.Decimal;
+                courseId: string;
+            }[];
+            _count: {
+                enrollments: number;
+            };
+        } & {
             name: string;
             id: string;
-            weight: import("@prisma/client/runtime/library").Decimal;
-            courseId: string;
-        }[];
-        _count: {
-            enrollments: number;
+            code: string;
+            description: string | null;
+            capacity: number;
+            semester: string;
+            createdAt: Date;
+            updatedAt: Date;
+            teacherId: string;
+        })[];
+        meta: {
+            total: number;
+            page: number;
+            limit: number;
+            totalPages: number;
         };
-    } & {
-        name: string;
-        id: string;
-        code: string;
-        description: string | null;
-        capacity: number;
-        semester: string;
-        createdAt: Date;
-        updatedAt: Date;
-        teacherId: string;
-    })[] | ({
-        teacher: {
-            name: string;
-            id: string;
-            email: string;
-        };
-        assessmentTypes: {
-            name: string;
-            id: string;
-            weight: import("@prisma/client/runtime/library").Decimal;
-            courseId: string;
-        }[];
-    } & {
-        name: string;
-        id: string;
-        code: string;
-        description: string | null;
-        capacity: number;
-        semester: string;
-        createdAt: Date;
-        updatedAt: Date;
-        teacherId: string;
-    })[]>;
+    }>;
     findOne(id: string, user: CourseUser): Promise<{
         teacher: {
             name: string;
@@ -85,7 +77,7 @@ export declare class CoursesService {
         assessmentTypes: {
             name: string;
             id: string;
-            weight: import("@prisma/client/runtime/library").Decimal;
+            weight: Prisma.Decimal;
             courseId: string;
         }[];
         _count: {
@@ -106,7 +98,7 @@ export declare class CoursesService {
         assessmentTypes: {
             name: string;
             id: string;
-            weight: import("@prisma/client/runtime/library").Decimal;
+            weight: Prisma.Decimal;
             courseId: string;
         }[];
     } & {
