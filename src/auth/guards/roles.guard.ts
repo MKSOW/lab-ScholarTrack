@@ -13,18 +13,16 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    // Lit les rôles déclarés sur le handler ou la classe via @Roles()
     const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
 
-    // Aucun @Roles() déclaré → la route ne nécessite pas de rôle spécifique
     if (!requiredRoles || requiredRoles.length === 0) {
       return true;
     }
 
-    // request.user est positionné par l'AuthGuard de @thallesp/nestjs-better-auth
+    // request.user est peuplé par AuthGuard (@thallesp/nestjs-better-auth) avant ce guard
     const request = context
       .switchToHttp()
       .getRequest<{ user?: { role?: Role } }>();
