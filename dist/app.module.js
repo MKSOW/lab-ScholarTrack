@@ -20,7 +20,8 @@ const roles_guard_1 = require("./auth/guards/roles.guard");
 const auth_1 = require("./auth/auth");
 let AppModule = class AppModule {
     configure(consumer) {
-        consumer.apply(rate_limit_middleware_1.RateLimitMiddleware).forRoutes('*');
+        const rateLimiter = new rate_limit_middleware_1.RateLimitMiddleware();
+        consumer.apply(rateLimiter.use.bind(rateLimiter)).forRoutes('*');
     }
 };
 exports.AppModule = AppModule;

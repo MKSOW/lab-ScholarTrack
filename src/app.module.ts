@@ -29,7 +29,10 @@ import { auth } from './auth/auth';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    // Rate limiting appliqué à toutes les routes : 100 req / 15 min par IP
-    consumer.apply(RateLimitMiddleware).forRoutes('*');
+    // On instancie RateLimitMiddleware nous-mêmes (constructeur à params primitifs,
+    // non injectables par DI), puis on l'applique comme middleware fonctionnel.
+    // .bind() préserve `this` pour que le Map interne reste partagé entre requêtes.
+    const rateLimiter = new RateLimitMiddleware();
+    consumer.apply(rateLimiter.use.bind(rateLimiter)).forRoutes('*');
   }
 }

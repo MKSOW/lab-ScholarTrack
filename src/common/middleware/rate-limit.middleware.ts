@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable, NestMiddleware } from '@nestjs/common';
+import { HttpStatus, NestMiddleware } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
 
 interface RateLimitEntry {
@@ -6,7 +6,9 @@ interface RateLimitEntry {
   windowStart: number;
 }
 
-@Injectable()
+// PAS de @Injectable() : les paramètres primitifs du constructeur (number, Function)
+// ne peuvent pas être résolus par le système DI de NestJS.
+// Ce middleware est instancié manuellement dans AppModule.configure().
 export class RateLimitMiddleware implements NestMiddleware {
   private readonly store = new Map<string, RateLimitEntry>();
 
