@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs'],
+    ignores: ['eslint.config.mjs', 'dist/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -19,7 +19,11 @@ export default tseslint.config(
       },
       sourceType: 'commonjs',
       parserOptions: {
-        projectService: true,
+        // allowDefaultProject permet de linter prisma/seed.ts et autres
+        // fichiers .ts hors de src/ sans les ajouter au tsconfig principal
+        projectService: {
+          allowDefaultProject: ['prisma/*.ts', 'test/*.ts', 'test/mocks/*.ts'],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -29,7 +33,20 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+      // Variables préfixées par _ = intentionnellement inutilisées (convention TypeScript)
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+      }],
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
+    },
+  },
+  {
+    // Dans les fichiers de test, expect(mock.method) est un pattern Jest standard.
+    // @typescript-eslint/unbound-method génère des faux positifs dans ce contexte.
+    files: ['**/*.spec.ts'],
+    rules: {
+      '@typescript-eslint/unbound-method': 'off',
     },
   },
 );

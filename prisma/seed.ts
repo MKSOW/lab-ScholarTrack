@@ -1,43 +1,50 @@
 import { PrismaClient, Role } from '@prisma/client';
+import { auth } from '../src/auth/auth';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Lecture stricte des variables d'environnement
-  // On échoue tôt si une variable critique manque
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD;
   const adminName = process.env.ADMIN_NAME ?? 'Default Admin';
 
   if (!adminEmail || !adminPassword) {
     throw new Error(
-      'Missing required env vars: ADMIN_EMAIL and ADMIN_PASSWORD must be set in .env',
+      'ADMIN_EMAIL et ADMIN_PASSWORD doivent être définis dans .env',
     );
   }
 
-  // ⚠️ Pour l'instant on ne stocke PAS encore le password.
-  // Better Auth (Phase 2) le hashera et le stockera dans la table `accounts`.
-  // On garde la variable lue ici pour valider qu'elle est bien définie,
-  // et on l'utilisera dans le seed une fois Better Auth branché.
-  void adminPassword;
-
-  const admin = await prisma.user.upsert({
+  // Seed idempotent : ne recrée pas l'admin s'il existe déjà
+  const existing = await prisma.user.findUnique({
     where: { email: adminEmail },
-    update: {},
-    create: {
+  });
+  if (existing) {
+    console.log(`ℹ️  Admin déjà présent : ${adminEmail}`);
+    return;
+  }
+
+  // Créer le compte via Better Auth pour que le mot de passe soit hashé
+  // et stocké dans la table `accounts` (format attendu par Better Auth)
+  const response = await auth.api.signUpEmail({
+    body: {
       email: adminEmail,
       name: adminName,
-      role: Role.ADMIN,
-      emailVerified: true,
+      password: adminPassword,
     },
   });
 
-  console.log(`✅ Admin seeded: ${admin.email} (id=${admin.id})`);
+  // Passer le rôle à ADMIN (Better Auth crée avec STUDENT par défaut)
+  await prisma.user.update({
+    where: { id: response.user.id },
+    data: { role: Role.ADMIN, emailVerified: true },
+  });
+
+  console.log(`✅ Admin seeded : ${adminEmail} (id=${response.user.id})`);
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seed failed:', e);
+    console.error('❌ Seed échoué :', e);
     process.exit(1);
   })
   .finally(async () => {

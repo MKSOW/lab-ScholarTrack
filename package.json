@@ -18,17 +18,25 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts",
+    "prepare": "husky"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/swagger": "^11.4.3",
     "@prisma/client": "^6.19.3",
+    "@thallesp/nestjs-better-auth": "^2.4.0",
+    "better-auth": "^1.6.11",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.0.1",
+    "@commitlint/config-conventional": "^21.0.1",
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",
@@ -42,7 +50,9 @@
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^17.0.0",
+    "husky": "^9.1.7",
     "jest": "^30.0.0",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.4.2",
     "prisma": "^6.19.3",
     "source-map-support": "^0.5.21",
@@ -54,11 +64,16 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
   },
-
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
   },
-    "jest": {
+  "lint-staged": {
+    "{src,test,prisma}/**/*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  },
+  "jest": {
     "moduleFileExtensions": [
       "js",
       "json",
@@ -68,6 +83,9 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^@thallesp/nestjs-better-auth$": "<rootDir>/../test/mocks/nestjs-better-auth.mock.ts"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
