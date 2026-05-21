@@ -12,11 +12,15 @@ const core_1 = require("@nestjs/core");
 const nestjs_better_auth_1 = require("@thallesp/nestjs-better-auth");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
+const rate_limit_middleware_1 = require("./common/middleware/rate-limit.middleware");
 const prisma_module_1 = require("./prisma/prisma.module");
 const users_module_1 = require("./users/users.module");
 const roles_guard_1 = require("./auth/guards/roles.guard");
 const auth_1 = require("./auth/auth");
 let AppModule = class AppModule {
+    configure(consumer) {
+        consumer.apply(rate_limit_middleware_1.RateLimitMiddleware).forRoutes('*');
+    }
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
