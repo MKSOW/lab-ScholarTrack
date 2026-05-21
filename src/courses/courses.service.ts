@@ -219,8 +219,8 @@ export class CoursesService {
     return { message: `Cours "${course.code}" supprimé avec succès` };
   }
 
-  // La capacité du cours est déjà vérifiée en amont par le CapacityPipe.
-  // Ici on valide l'étudiant et l'absence de doublon d'inscription.
+  // Validation atomique de capacité + doublon dans la même transaction
+  // que la création de l'inscription pour éviter les courses critiques.
   async enroll(courseId: string, studentId: string) {
     const student = await this.prisma.user.findUnique({
       where: { id: studentId },
@@ -232,20 +232,37 @@ export class CoursesService {
       );
     }
 
-    const existing = await this.prisma.enrollment.findUnique({
-      where: { studentId_courseId: { studentId, courseId } },
-    });
-    if (existing) {
-      throw new ConflictException("L'étudiant est déjà inscrit à ce cours");
-    }
+    const enrollment = await this.prisma.$transaction(
+      async (tx) => {
+        const course = await tx.course.findUnique({
+          where: { id: courseId },
+          select: { capacity: true, _count: { select: { enrollments: true } } },
+        });
+        if (!course) throw new NotFoundException('Cours introuvable');
 
-    const enrollment = await this.prisma.enrollment.create({
-      data: { studentId, courseId },
-      include: {
-        student: { select: { id: true, name: true, email: true } },
-        course: { select: { id: true, code: true, name: true } },
+        const existing = await tx.enrollment.findUnique({
+          where: { studentId_courseId: { studentId, courseId } },
+        });
+        if (existing) {
+          throw new ConflictException("L'étudiant est déjà inscrit à ce cours");
+        }
+
+        if (course._count.enrollments >= course.capacity) {
+          throw new ConflictException(
+            'La capacité maximale de ce cours est atteinte',
+          );
+        }
+
+        return tx.enrollment.create({
+          data: { studentId, courseId },
+          include: {
+            student: { select: { id: true, name: true, email: true } },
+            course: { select: { id: true, code: true, name: true } },
+          },
+        });
       },
-    });
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     this.logger.log(
       `Inscription : ${student.name} → cours ${enrollment.course.code}`,
