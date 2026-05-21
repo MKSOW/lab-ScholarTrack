@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from '@thallesp/nestjs-better-auth';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
+import { RolesGuard } from './auth/guards/roles.guard';
 import { auth } from './auth/auth';
 
 @Module({
@@ -16,6 +18,10 @@ import { auth } from './auth/auth';
     UsersModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Enregistre RolesGuard globalement — s'exécute après AuthGuard pour toutes les routes
+    { provide: APP_GUARD, useClass: RolesGuard },
+  ],
 })
 export class AppModule {}

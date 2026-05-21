@@ -1,10 +1,12 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 
-// TODO 2.5 : ajouter @Roles(['ADMIN']) une fois le RolesGuard implémenté
 @ApiTags('users')
+@Roles(Role.ADMIN)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
