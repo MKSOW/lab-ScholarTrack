@@ -69,7 +69,9 @@ __decorate([
     (0, common_1.Post)(':id/enroll'),
     (0, roles_decorator_1.Roles)(client_1.Role.ADMIN),
     (0, common_1.HttpCode)(common_1.HttpStatus.CREATED),
-    (0, swagger_1.ApiOperation)({ summary: 'Inscrire un étudiant à un cours (admin uniquement)' }),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Inscrire un étudiant à un cours (admin uniquement)',
+    }),
     (0, swagger_1.ApiResponse)({ status: 201, description: 'Étudiant inscrit avec succès' }),
     (0, swagger_1.ApiResponse)({ status: 404, description: 'Cours ou étudiant introuvable' }),
     (0, swagger_1.ApiResponse)({
