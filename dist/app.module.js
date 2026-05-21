@@ -27,12 +27,13 @@ exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
             prisma_module_1.PrismaModule,
-            nestjs_better_auth_1.AuthModule.forRoot({ auth: auth_1.auth }),
+            nestjs_better_auth_1.AuthModule.forRoot({ auth: auth_1.auth, disableGlobalAuthGuard: true }),
             users_module_1.UsersModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [
             app_service_1.AppService,
+            { provide: core_1.APP_GUARD, useClass: nestjs_better_auth_1.AuthGuard },
             { provide: core_1.APP_GUARD, useClass: roles_guard_1.RolesGuard },
         ],
     })

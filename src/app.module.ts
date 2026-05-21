@@ -1,6 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { AuthModule } from '@thallesp/nestjs-better-auth';
+import { AuthGuard, AuthModule } from '@thallesp/nestjs-better-auth';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
@@ -12,16 +12,18 @@ import { auth } from './auth/auth';
 @Module({
   imports: [
     PrismaModule,
-    // Enregistre Better Auth dans NestJS et monte un AuthGuard global.
-    // Toutes les routes sont protégées par défaut — utiliser @AllowAnonymous()
-    // pour les routes publiques.
-    AuthModule.forRoot({ auth }),
+    // disableGlobalAuthGuard: true → on désactive le guard interne de la librairie
+    // pour le re-enregistrer explicitement ci-dessous et garantir l'ordre d'exécution.
+    AuthModule.forRoot({ auth, disableGlobalAuthGuard: true }),
     UsersModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
-    // Enregistre RolesGuard globalement — s'exécute après AuthGuard pour toutes les routes
+    // Ordre d'exécution garanti : AuthGuard en premier (peuple request.user depuis la session),
+    // puis RolesGuard (vérifie request.user.role).
+    // En NestJS, les APP_GUARD s'exécutent dans l'ordre de déclaration.
+    { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })

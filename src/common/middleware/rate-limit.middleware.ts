@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable, NestMiddleware } from '@nestjs/common';
+import { HttpStatus, NestMiddleware } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
 
 interface RateLimitEntry {
@@ -6,7 +6,9 @@ interface RateLimitEntry {
   windowStart: number;
 }
 
-@Injectable()
+// Pas de @Injectable() : NestJS instancie les middlewares directement (new ClassName())
+// sans passer par le système DI. Les paramètres primitifs du constructeur
+// ne peuvent pas être résolus par DI — on les garde pour les tests uniquement.
 export class RateLimitMiddleware implements NestMiddleware {
   private readonly store = new Map<string, RateLimitEntry>();
 
