@@ -21,7 +21,10 @@ class CreateGradeDto {
 }
 exports.CreateGradeDto = CreateGradeDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ example: 'clxxxstudent1', description: "Identifiant de l'étudiant" }),
+    (0, swagger_1.ApiProperty)({
+        example: 'clxxxstudent1',
+        description: "Identifiant de l'étudiant",
+    }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
