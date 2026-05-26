@@ -26,13 +26,13 @@ export declare class GradesService {
             weight: import("@prisma/client/runtime/library").Decimal;
         };
     } & {
-        id: string;
-        value: import("@prisma/client/runtime/library").Decimal;
-        comment: string | null;
-        gradedAt: Date;
         studentId: string;
         courseId: string;
         assessmentTypeId: string;
+        value: import("@prisma/client/runtime/library").Decimal;
+        comment: string | null;
+        id: string;
+        gradedAt: Date;
     }>;
     findByCourse(courseId: string, requestingUser: GradeUser): Promise<({
         student: {
@@ -46,13 +46,13 @@ export declare class GradesService {
             weight: import("@prisma/client/runtime/library").Decimal;
         };
     } & {
-        id: string;
-        value: import("@prisma/client/runtime/library").Decimal;
-        comment: string | null;
-        gradedAt: Date;
         studentId: string;
         courseId: string;
         assessmentTypeId: string;
+        value: import("@prisma/client/runtime/library").Decimal;
+        comment: string | null;
+        id: string;
+        gradedAt: Date;
     })[]>;
     getWeightedAverage(studentId: string, courseId: string, requestingUser: GradeUser): Promise<{
         student: {
@@ -87,13 +87,13 @@ export declare class GradesService {
             weight: import("@prisma/client/runtime/library").Decimal;
         };
     } & {
-        id: string;
-        value: import("@prisma/client/runtime/library").Decimal;
-        comment: string | null;
-        gradedAt: Date;
         studentId: string;
         courseId: string;
         assessmentTypeId: string;
+        value: import("@prisma/client/runtime/library").Decimal;
+        comment: string | null;
+        id: string;
+        gradedAt: Date;
     })[]>;
     importFromCsv(courseId: string, file: Express.Multer.File, requestingUser: GradeUser): Promise<{
         imported: number;

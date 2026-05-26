@@ -27,13 +27,13 @@ export declare class GradesController {
             weight: import("@prisma/client/runtime/library").Decimal;
         };
     } & {
-        id: string;
-        value: import("@prisma/client/runtime/library").Decimal;
-        comment: string | null;
-        gradedAt: Date;
         studentId: string;
         courseId: string;
         assessmentTypeId: string;
+        value: import("@prisma/client/runtime/library").Decimal;
+        comment: string | null;
+        id: string;
+        gradedAt: Date;
     }>;
     findByCourse(courseId: string, req: {
         user: RequestUser;
@@ -49,13 +49,13 @@ export declare class GradesController {
             weight: import("@prisma/client/runtime/library").Decimal;
         };
     } & {
-        id: string;
-        value: import("@prisma/client/runtime/library").Decimal;
-        comment: string | null;
-        gradedAt: Date;
         studentId: string;
         courseId: string;
         assessmentTypeId: string;
+        value: import("@prisma/client/runtime/library").Decimal;
+        comment: string | null;
+        id: string;
+        gradedAt: Date;
     })[]>;
     findByStudent(studentId: string, req: {
         user: RequestUser;
@@ -72,13 +72,13 @@ export declare class GradesController {
             weight: import("@prisma/client/runtime/library").Decimal;
         };
     } & {
-        id: string;
-        value: import("@prisma/client/runtime/library").Decimal;
-        comment: string | null;
-        gradedAt: Date;
         studentId: string;
         courseId: string;
         assessmentTypeId: string;
+        value: import("@prisma/client/runtime/library").Decimal;
+        comment: string | null;
+        id: string;
+        gradedAt: Date;
     })[]>;
     importFromCsv(courseId: string, file: Express.Multer.File, req: {
         user: RequestUser;
