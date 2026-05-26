@@ -112,7 +112,7 @@ __decorate([
         },
     }),
     (0, swagger_1.ApiOperation)({
-        summary: 'Import CSV de notes — tout-ou-rien : si une ligne est invalide, aucune note n\'est insérée',
+        summary: "Import CSV de notes — tout-ou-rien : si une ligne est invalide, aucune note n'est insérée",
     }),
     (0, swagger_1.ApiResponse)({ status: 201, description: 'Import réussi — { imported: N }' }),
     (0, swagger_1.ApiResponse)({
