@@ -134,6 +134,112 @@ export class GradesService {
     });
   }
 
+  // Moyenne pondérée d'un étudiant dans un cours.
+  // Formule : Σ(note.value × assessmentType.weight / 100)
+  // Retourne aussi un détail par type d'évaluation et un flag isComplete
+  // (false si certains types d'évaluation n'ont pas encore de note).
+  async getWeightedAverage(
+    studentId: string,
+    courseId: string,
+    requestingUser: GradeUser,
+  ) {
+    // Contrôle d'accès : un étudiant ne voit que sa propre moyenne
+    if (
+      requestingUser.role === Role.STUDENT &&
+      requestingUser.id !== studentId
+    ) {
+      throw new ForbiddenException(
+        'Accès refusé : vous ne pouvez consulter que votre propre moyenne',
+      );
+    }
+
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        teacherId: true,
+        assessmentTypes: { select: { id: true, name: true, weight: true } },
+      },
+    });
+    if (!course) throw new NotFoundException('Cours introuvable');
+
+    // Un Teacher ne peut voir que les moyennes de son propre cours
+    if (
+      requestingUser.role === Role.TEACHER &&
+      course.teacherId !== requestingUser.id
+    ) {
+      throw new ForbiddenException(
+        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+      );
+    }
+
+    const student = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      select: { id: true, role: true, name: true },
+    });
+    if (!student || student.role !== Role.STUDENT) {
+      throw new NotFoundException(
+        `Aucun étudiant trouvé avec l'identifiant "${studentId}"`,
+      );
+    }
+
+    // Vérifier que l'étudiant est inscrit au cours
+    const enrollment = await this.prisma.enrollment.findUnique({
+      where: { studentId_courseId: { studentId, courseId } },
+    });
+    if (!enrollment) {
+      throw new BadRequestException(
+        `L'étudiant "${student.name}" n'est pas inscrit au cours "${course.code}"`,
+      );
+    }
+
+    const grades = await this.prisma.grade.findMany({
+      where: { studentId, courseId },
+      select: { assessmentTypeId: true, value: true },
+    });
+
+    // Indexer les notes par assessmentTypeId pour une recherche en O(1)
+    const gradeMap = new Map(
+      grades.map((g) => [g.assessmentTypeId, Number(g.value)]),
+    );
+
+    let weightedSum = 0;
+    let coveredWeight = 0;
+
+    const details = course.assessmentTypes.map((at) => {
+      const weight = Number(at.weight);
+      const grade = gradeMap.get(at.id) ?? null;
+      const contribution =
+        grade !== null ? parseFloat(((grade * weight) / 100).toFixed(2)) : null;
+
+      if (grade !== null) {
+        weightedSum += (grade * weight) / 100;
+        coveredWeight += weight;
+      }
+
+      return { assessmentType: at.name, weight, grade, contribution };
+    });
+
+    const isComplete = coveredWeight === 100;
+    // Si la moyenne est partielle, on la ramène sur les poids déjà saisis
+    // pour éviter une moyenne artificiellement basse
+    const average =
+      coveredWeight > 0
+        ? parseFloat(((weightedSum / coveredWeight) * 100).toFixed(2))
+        : null;
+
+    return {
+      student: { id: student.id, name: student.name },
+      course: { id: course.id, code: course.code, name: course.name },
+      average,
+      isComplete,
+      coveredWeight,
+      details,
+    };
+  }
+
   // Notes d'un étudiant :
   // - STUDENT → uniquement ses propres notes (toutes les matières)
   // - TEACHER → notes de l'étudiant uniquement dans les cours qu'il enseigne

@@ -54,6 +54,26 @@ export declare class GradesService {
         courseId: string;
         assessmentTypeId: string;
     })[]>;
+    getWeightedAverage(studentId: string, courseId: string, requestingUser: GradeUser): Promise<{
+        student: {
+            id: string;
+            name: string;
+        };
+        course: {
+            id: string;
+            code: string;
+            name: string;
+        };
+        average: number | null;
+        isComplete: boolean;
+        coveredWeight: number;
+        details: {
+            assessmentType: string;
+            weight: number;
+            grade: number | null;
+            contribution: number | null;
+        }[];
+    }>;
     findByStudent(studentId: string, requestingUser: GradeUser): Promise<({
         course: {
             id: string;

@@ -102,6 +102,68 @@ let GradesService = GradesService_1 = class GradesService {
             orderBy: [{ student: { name: 'asc' } }, { gradedAt: 'desc' }],
         });
     }
+    async getWeightedAverage(studentId, courseId, requestingUser) {
+        if (requestingUser.role === client_1.Role.STUDENT && requestingUser.id !== studentId) {
+            throw new common_1.ForbiddenException('Accès refusé : vous ne pouvez consulter que votre propre moyenne');
+        }
+        const course = await this.prisma.course.findUnique({
+            where: { id: courseId },
+            select: {
+                id: true,
+                code: true,
+                name: true,
+                teacherId: true,
+                assessmentTypes: { select: { id: true, name: true, weight: true } },
+            },
+        });
+        if (!course)
+            throw new common_1.NotFoundException('Cours introuvable');
+        if (requestingUser.role === client_1.Role.TEACHER && course.teacherId !== requestingUser.id) {
+            throw new common_1.ForbiddenException("Accès refusé : vous n'êtes pas le professeur de ce cours");
+        }
+        const student = await this.prisma.user.findUnique({
+            where: { id: studentId },
+            select: { id: true, role: true, name: true },
+        });
+        if (!student || student.role !== client_1.Role.STUDENT) {
+            throw new common_1.NotFoundException(`Aucun étudiant trouvé avec l'identifiant "${studentId}"`);
+        }
+        const enrollment = await this.prisma.enrollment.findUnique({
+            where: { studentId_courseId: { studentId, courseId } },
+        });
+        if (!enrollment) {
+            throw new common_1.BadRequestException(`L'étudiant "${student.name}" n'est pas inscrit au cours "${course.code}"`);
+        }
+        const grades = await this.prisma.grade.findMany({
+            where: { studentId, courseId },
+            select: { assessmentTypeId: true, value: true },
+        });
+        const gradeMap = new Map(grades.map((g) => [g.assessmentTypeId, Number(g.value)]));
+        let weightedSum = 0;
+        let coveredWeight = 0;
+        const details = course.assessmentTypes.map((at) => {
+            const weight = Number(at.weight);
+            const grade = gradeMap.get(at.id) ?? null;
+            const contribution = grade !== null ? parseFloat(((grade * weight) / 100).toFixed(2)) : null;
+            if (grade !== null) {
+                weightedSum += (grade * weight) / 100;
+                coveredWeight += weight;
+            }
+            return { assessmentType: at.name, weight, grade, contribution };
+        });
+        const isComplete = coveredWeight === 100;
+        const average = coveredWeight > 0
+            ? parseFloat(((weightedSum / coveredWeight) * 100).toFixed(2))
+            : null;
+        return {
+            student: { id: student.id, name: student.name },
+            course: { id: course.id, code: course.code, name: course.name },
+            average,
+            isComplete,
+            coveredWeight,
+            details,
+        };
+    }
     async findByStudent(studentId, requestingUser) {
         if (requestingUser.role === client_1.Role.STUDENT &&
             requestingUser.id !== studentId) {
