@@ -17,6 +17,7 @@ const prisma_module_1 = require("./prisma/prisma.module");
 const users_module_1 = require("./users/users.module");
 const courses_module_1 = require("./courses/courses.module");
 const grades_module_1 = require("./grades/grades.module");
+const attendance_module_1 = require("./attendance/attendance.module");
 const roles_guard_1 = require("./auth/guards/roles.guard");
 const auth_1 = require("./auth/auth");
 let AppModule = class AppModule {
@@ -34,6 +35,7 @@ exports.AppModule = AppModule = __decorate([
             users_module_1.UsersModule,
             courses_module_1.CoursesModule,
             grades_module_1.GradesModule,
+            attendance_module_1.AttendanceModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [
