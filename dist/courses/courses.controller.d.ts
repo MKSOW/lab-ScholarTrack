@@ -12,38 +12,38 @@ export declare class CoursesController {
     private readonly coursesService;
     constructor(coursesService: CoursesService);
     create(dto: CreateCourseDto): Promise<{
+        teacher: {
+            email: string;
+            id: string;
+            name: string;
+        };
         assessmentTypes: {
+            id: string;
             name: string;
             weight: import("@prisma/client/runtime/library").Decimal;
-            id: string;
             courseId: string;
         }[];
-        teacher: {
-            name: string;
-            id: string;
-            email: string;
-        };
     } & {
-        description: string | null;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
         capacity: number;
         semester: string;
         teacherId: string;
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     enroll(courseId: string, dto: EnrollStudentDto): Promise<{
         course: {
+            id: string;
             name: string;
             code: string;
-            id: string;
         };
         student: {
-            name: string;
-            id: string;
             email: string;
+            id: string;
+            name: string;
         };
     } & {
         id: string;
@@ -55,30 +55,30 @@ export declare class CoursesController {
         user: RequestUser;
     }): Promise<{
         data: ({
-            assessmentTypes: {
-                name: string;
-                weight: import("@prisma/client/runtime/library").Decimal;
-                id: string;
-                courseId: string;
-            }[];
-            teacher: {
-                name: string;
-                id: string;
-                email: string;
-            };
             _count: {
                 enrollments: number;
             };
+            teacher: {
+                email: string;
+                id: string;
+                name: string;
+            };
+            assessmentTypes: {
+                id: string;
+                name: string;
+                weight: import("@prisma/client/runtime/library").Decimal;
+                courseId: string;
+            }[];
         } & {
-            description: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             name: string;
+            description: string | null;
             code: string;
             capacity: number;
             semester: string;
             teacherId: string;
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
         })[];
         meta: {
             total: number;
@@ -90,48 +90,48 @@ export declare class CoursesController {
     findOne(id: string, req: {
         user: RequestUser;
     }): Promise<{
-        assessmentTypes: {
-            name: string;
-            weight: import("@prisma/client/runtime/library").Decimal;
-            id: string;
-            courseId: string;
-        }[];
-        teacher: {
-            name: string;
-            id: string;
-            email: string;
-        };
         _count: {
             enrollments: number;
         };
-    } & {
-        description: string | null;
-        name: string;
-        code: string;
-        capacity: number;
-        semester: string;
-        teacherId: string;
-        id: string;
-        createdAt: Date;
-        updatedAt: Date;
-    }>;
-    update(id: string, dto: UpdateCourseDto): Promise<{
+        teacher: {
+            email: string;
+            id: string;
+            name: string;
+        };
         assessmentTypes: {
+            id: string;
             name: string;
             weight: import("@prisma/client/runtime/library").Decimal;
-            id: string;
             courseId: string;
         }[];
     } & {
-        description: string | null;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
         name: string;
+        description: string | null;
         code: string;
         capacity: number;
         semester: string;
         teacherId: string;
+    }>;
+    update(id: string, dto: UpdateCourseDto): Promise<{
+        assessmentTypes: {
+            id: string;
+            name: string;
+            weight: import("@prisma/client/runtime/library").Decimal;
+            courseId: string;
+        }[];
+    } & {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
+        description: string | null;
+        code: string;
+        capacity: number;
+        semester: string;
+        teacherId: string;
     }>;
     remove(id: string): Promise<{
         message: string;
