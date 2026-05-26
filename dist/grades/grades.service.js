@@ -14,6 +14,7 @@ exports.GradesService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../prisma/prisma.service");
+const csv_parser_1 = require("./utils/csv-parser");
 let GradesService = GradesService_1 = class GradesService {
     prisma;
     logger = new common_1.Logger(GradesService_1.name);
@@ -191,6 +192,119 @@ let GradesService = GradesService_1 = class GradesService {
             },
             orderBy: { gradedAt: 'desc' },
         });
+    }
+    async importFromCsv(courseId, file, requestingUser) {
+        const course = await this.prisma.course.findUnique({
+            where: { id: courseId },
+            select: { id: true, code: true, name: true, teacherId: true },
+        });
+        if (!course)
+            throw new common_1.NotFoundException('Cours introuvable');
+        if (requestingUser.role === client_1.Role.TEACHER &&
+            course.teacherId !== requestingUser.id) {
+            throw new common_1.ForbiddenException("Accès refusé : vous n'êtes pas le professeur de ce cours");
+        }
+        const { rows, parseError } = (0, csv_parser_1.parseCsvBuffer)(file.buffer);
+        if (parseError)
+            throw new common_1.BadRequestException(parseError);
+        if (rows.length === 0)
+            throw new common_1.BadRequestException('Le fichier CSV ne contient aucune ligne de données');
+        const [assessmentTypes, enrollments, existingGrades] = await Promise.all([
+            this.prisma.assessmentType.findMany({
+                where: { courseId },
+                select: { id: true, name: true },
+            }),
+            this.prisma.enrollment.findMany({
+                where: { courseId },
+                select: { studentId: true },
+            }),
+            this.prisma.grade.findMany({
+                where: { courseId },
+                select: { studentId: true, assessmentTypeId: true },
+            }),
+        ]);
+        const assessmentTypeIds = new Set(assessmentTypes.map((at) => at.id));
+        const enrolledStudentIds = new Set(enrollments.map((e) => e.studentId));
+        const existingGradeKeys = new Set(existingGrades.map((g) => `${g.studentId}::${g.assessmentTypeId}`));
+        const seenInFile = new Set();
+        const errors = [];
+        for (const row of rows) {
+            const rowData = {
+                studentId: row.studentId,
+                assessmentTypeId: row.assessmentTypeId,
+                value: row.value,
+                comment: row.comment,
+            };
+            if (!row.studentId) {
+                errors.push({ row: row.rowNumber, error: 'Le champ studentId est requis', data: rowData });
+                continue;
+            }
+            if (!row.assessmentTypeId) {
+                errors.push({ row: row.rowNumber, error: 'Le champ assessmentTypeId est requis', data: rowData });
+                continue;
+            }
+            const numValue = parseFloat(row.value);
+            if (isNaN(numValue) || numValue < 0 || numValue > 20) {
+                errors.push({
+                    row: row.rowNumber,
+                    error: `Valeur invalide "${row.value}" — doit être un nombre entre 0 et 20`,
+                    data: rowData,
+                });
+                continue;
+            }
+            if (!enrolledStudentIds.has(row.studentId)) {
+                errors.push({
+                    row: row.rowNumber,
+                    error: `L'étudiant "${row.studentId}" n'est pas inscrit au cours "${course.code}"`,
+                    data: rowData,
+                });
+                continue;
+            }
+            if (!assessmentTypeIds.has(row.assessmentTypeId)) {
+                errors.push({
+                    row: row.rowNumber,
+                    error: `Type d'évaluation "${row.assessmentTypeId}" introuvable dans le cours "${course.code}"`,
+                    data: rowData,
+                });
+                continue;
+            }
+            const compositeKey = `${row.studentId}::${row.assessmentTypeId}`;
+            if (existingGradeKeys.has(compositeKey)) {
+                errors.push({
+                    row: row.rowNumber,
+                    error: `Une note existe déjà en base pour cet étudiant et ce type d'évaluation`,
+                    data: rowData,
+                });
+                continue;
+            }
+            if (seenInFile.has(compositeKey)) {
+                errors.push({
+                    row: row.rowNumber,
+                    error: `Doublon dans le fichier CSV : même étudiant et même type d'évaluation déjà présents`,
+                    data: rowData,
+                });
+                continue;
+            }
+            seenInFile.add(compositeKey);
+        }
+        if (errors.length > 0) {
+            throw new common_1.UnprocessableEntityException({
+                message: `Import annulé : ${errors.length} erreur(s) détectée(s)`,
+                errors,
+            });
+        }
+        const validRows = rows.filter((r) => !isNaN(parseFloat(r.value)));
+        await this.prisma.$transaction(validRows.map((row) => this.prisma.grade.create({
+            data: {
+                studentId: row.studentId,
+                courseId,
+                assessmentTypeId: row.assessmentTypeId,
+                value: parseFloat(row.value),
+                comment: row.comment,
+            },
+        })));
+        this.logger.log(`Import CSV cours "${course.code}" : ${validRows.length} note(s) importée(s) par user ${requestingUser.id}`);
+        return { imported: validRows.length, course: { code: course.code, name: course.name } };
     }
 };
 exports.GradesService = GradesService;

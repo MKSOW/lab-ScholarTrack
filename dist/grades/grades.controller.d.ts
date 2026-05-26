@@ -11,6 +11,11 @@ export declare class GradesController {
     create(dto: CreateGradeDto, req: {
         user: RequestUser;
     }): Promise<{
+        student: {
+            id: string;
+            email: string;
+            name: string;
+        };
         course: {
             id: string;
             name: string;
@@ -20,11 +25,6 @@ export declare class GradesController {
             id: string;
             name: string;
             weight: import("@prisma/client/runtime/library").Decimal;
-        };
-        student: {
-            email: string;
-            id: string;
-            name: string;
         };
     } & {
         id: string;
@@ -38,15 +38,15 @@ export declare class GradesController {
     findByCourse(courseId: string, req: {
         user: RequestUser;
     }): Promise<({
+        student: {
+            id: string;
+            email: string;
+            name: string;
+        };
         assessmentType: {
             id: string;
             name: string;
             weight: import("@prisma/client/runtime/library").Decimal;
-        };
-        student: {
-            email: string;
-            id: string;
-            name: string;
         };
     } & {
         id: string;

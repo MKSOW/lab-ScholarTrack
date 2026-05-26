@@ -2,7 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseCsvBuffer = parseCsvBuffer;
 function parseCsvBuffer(buffer) {
-    const text = buffer.toString('utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const text = buffer
+        .toString('utf-8')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n');
     const lines = text.split('\n').filter((l) => l.trim().length > 0);
     if (lines.length === 0) {
         return { rows: [], parseError: 'Le fichier CSV est vide' };

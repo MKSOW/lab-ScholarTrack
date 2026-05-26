@@ -5,10 +5,12 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGradeDto } from './dto/create-grade.dto';
+import { parseCsvBuffer } from './utils/csv-parser';
 
 export type GradeUser = { id: string; role: Role };
 
@@ -281,5 +283,179 @@ export class GradesService {
       },
       orderBy: { gradedAt: 'desc' },
     });
+  }
+
+  // Import CSV tout-ou-rien : toutes les lignes sont validées avant toute écriture.
+  // Si une seule ligne est invalide → 422 avec rapport d'erreurs complet, 0 insertion.
+  async importFromCsv(
+    courseId: string,
+    file: Express.Multer.File,
+    requestingUser: GradeUser,
+  ) {
+    // Contrôle d'accès
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, code: true, name: true, teacherId: true },
+    });
+    if (!course) throw new NotFoundException('Cours introuvable');
+
+    if (
+      requestingUser.role === Role.TEACHER &&
+      course.teacherId !== requestingUser.id
+    ) {
+      throw new ForbiddenException(
+        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+      );
+    }
+
+    // Étape 1 — Parse CSV
+    const { rows, parseError } = parseCsvBuffer(file.buffer);
+    if (parseError) throw new BadRequestException(parseError);
+    if (rows.length === 0)
+      throw new BadRequestException(
+        'Le fichier CSV ne contient aucune ligne de données',
+      );
+
+    // Étape 2 — Pré-chargement en base (évite N+1 queries lors de la validation)
+    const [assessmentTypes, enrollments, existingGrades] = await Promise.all([
+      this.prisma.assessmentType.findMany({
+        where: { courseId },
+        select: { id: true, name: true },
+      }),
+      this.prisma.enrollment.findMany({
+        where: { courseId },
+        select: { studentId: true },
+      }),
+      this.prisma.grade.findMany({
+        where: { courseId },
+        select: { studentId: true, assessmentTypeId: true },
+      }),
+    ]);
+
+    const assessmentTypeIds = new Set(assessmentTypes.map((at) => at.id));
+    const enrolledStudentIds = new Set(enrollments.map((e) => e.studentId));
+    // Clé composite pour détecter les doublons existants en base
+    const existingGradeKeys = new Set(
+      existingGrades.map((g) => `${g.studentId}::${g.assessmentTypeId}`),
+    );
+    // Clé composite pour détecter les doublons dans le fichier CSV lui-même
+    const seenInFile = new Set<string>();
+
+    // Étape 3 — Validation complète de toutes les lignes (collecte toutes les erreurs)
+    const errors: {
+      row: number;
+      error: string;
+      data: Record<string, string | undefined>;
+    }[] = [];
+
+    for (const row of rows) {
+      const rowData = {
+        studentId: row.studentId,
+        assessmentTypeId: row.assessmentTypeId,
+        value: row.value,
+        comment: row.comment,
+      };
+
+      if (!row.studentId) {
+        errors.push({
+          row: row.rowNumber,
+          error: 'Le champ studentId est requis',
+          data: rowData,
+        });
+        continue;
+      }
+      if (!row.assessmentTypeId) {
+        errors.push({
+          row: row.rowNumber,
+          error: 'Le champ assessmentTypeId est requis',
+          data: rowData,
+        });
+        continue;
+      }
+
+      const numValue = parseFloat(row.value);
+      if (isNaN(numValue) || numValue < 0 || numValue > 20) {
+        errors.push({
+          row: row.rowNumber,
+          error: `Valeur invalide "${row.value}" — doit être un nombre entre 0 et 20`,
+          data: rowData,
+        });
+        continue;
+      }
+
+      if (!enrolledStudentIds.has(row.studentId)) {
+        errors.push({
+          row: row.rowNumber,
+          error: `L'étudiant "${row.studentId}" n'est pas inscrit au cours "${course.code}"`,
+          data: rowData,
+        });
+        continue;
+      }
+
+      if (!assessmentTypeIds.has(row.assessmentTypeId)) {
+        errors.push({
+          row: row.rowNumber,
+          error: `Type d'évaluation "${row.assessmentTypeId}" introuvable dans le cours "${course.code}"`,
+          data: rowData,
+        });
+        continue;
+      }
+
+      const compositeKey = `${row.studentId}::${row.assessmentTypeId}`;
+
+      if (existingGradeKeys.has(compositeKey)) {
+        errors.push({
+          row: row.rowNumber,
+          error: `Une note existe déjà en base pour cet étudiant et ce type d'évaluation`,
+          data: rowData,
+        });
+        continue;
+      }
+
+      if (seenInFile.has(compositeKey)) {
+        errors.push({
+          row: row.rowNumber,
+          error: `Doublon dans le fichier CSV : même étudiant et même type d'évaluation déjà présents`,
+          data: rowData,
+        });
+        continue;
+      }
+
+      seenInFile.add(compositeKey);
+    }
+
+    // Étape 4 — Si des erreurs → on n'écrit rien (tout-ou-rien)
+    if (errors.length > 0) {
+      throw new UnprocessableEntityException({
+        message: `Import annulé : ${errors.length} erreur(s) détectée(s)`,
+        errors,
+      });
+    }
+
+    // Étape 5 — Toutes les lignes sont valides : insertion en transaction
+    const validRows = rows.filter((r) => !isNaN(parseFloat(r.value)));
+
+    await this.prisma.$transaction(
+      validRows.map((row) =>
+        this.prisma.grade.create({
+          data: {
+            studentId: row.studentId,
+            courseId,
+            assessmentTypeId: row.assessmentTypeId,
+            value: parseFloat(row.value),
+            comment: row.comment,
+          },
+        }),
+      ),
+    );
+
+    this.logger.log(
+      `Import CSV cours "${course.code}" : ${validRows.length} note(s) importée(s) par user ${requestingUser.id}`,
+    );
+
+    return {
+      imported: validRows.length,
+      course: { code: course.code, name: course.name },
+    };
   }
 }

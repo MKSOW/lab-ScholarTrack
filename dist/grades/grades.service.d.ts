@@ -10,6 +10,11 @@ export declare class GradesService {
     private readonly logger;
     constructor(prisma: PrismaService);
     create(dto: CreateGradeDto, requestingUser: GradeUser): Promise<{
+        student: {
+            id: string;
+            email: string;
+            name: string;
+        };
         course: {
             id: string;
             name: string;
@@ -19,11 +24,6 @@ export declare class GradesService {
             id: string;
             name: string;
             weight: import("@prisma/client/runtime/library").Decimal;
-        };
-        student: {
-            email: string;
-            id: string;
-            name: string;
         };
     } & {
         id: string;
@@ -35,15 +35,15 @@ export declare class GradesService {
         assessmentTypeId: string;
     }>;
     findByCourse(courseId: string, requestingUser: GradeUser): Promise<({
+        student: {
+            id: string;
+            email: string;
+            name: string;
+        };
         assessmentType: {
             id: string;
             name: string;
             weight: import("@prisma/client/runtime/library").Decimal;
-        };
-        student: {
-            email: string;
-            id: string;
-            name: string;
         };
     } & {
         id: string;
@@ -95,4 +95,11 @@ export declare class GradesService {
         courseId: string;
         assessmentTypeId: string;
     })[]>;
+    importFromCsv(courseId: string, file: Express.Multer.File, requestingUser: GradeUser): Promise<{
+        imported: number;
+        course: {
+            code: string;
+            name: string;
+        };
+    }>;
 }
