@@ -103,7 +103,8 @@ let GradesService = GradesService_1 = class GradesService {
         });
     }
     async getWeightedAverage(studentId, courseId, requestingUser) {
-        if (requestingUser.role === client_1.Role.STUDENT && requestingUser.id !== studentId) {
+        if (requestingUser.role === client_1.Role.STUDENT &&
+            requestingUser.id !== studentId) {
             throw new common_1.ForbiddenException('Accès refusé : vous ne pouvez consulter que votre propre moyenne');
         }
         const course = await this.prisma.course.findUnique({
@@ -118,7 +119,8 @@ let GradesService = GradesService_1 = class GradesService {
         });
         if (!course)
             throw new common_1.NotFoundException('Cours introuvable');
-        if (requestingUser.role === client_1.Role.TEACHER && course.teacherId !== requestingUser.id) {
+        if (requestingUser.role === client_1.Role.TEACHER &&
+            course.teacherId !== requestingUser.id) {
             throw new common_1.ForbiddenException("Accès refusé : vous n'êtes pas le professeur de ce cours");
         }
         const student = await this.prisma.user.findUnique({

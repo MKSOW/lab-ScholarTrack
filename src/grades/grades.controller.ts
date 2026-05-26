@@ -67,4 +67,21 @@ export class GradesController {
   ) {
     return this.gradesService.findByStudent(studentId, req.user);
   }
+
+  @Get('average/:studentId/:courseId')
+  @ApiOperation({
+    summary:
+      'Moyenne pondérée — Σ(note × poids / 100). Si des notes manquent, retourne une moyenne provisoire normalisée + isComplete: false',
+  })
+  @ApiResponse({ status: 200, description: 'Moyenne pondérée calculée' })
+  @ApiResponse({ status: 400, description: 'Étudiant non inscrit au cours' })
+  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiResponse({ status: 404, description: 'Cours ou étudiant introuvable' })
+  getWeightedAverage(
+    @Param('studentId') studentId: string,
+    @Param('courseId') courseId: string,
+    @Req() req: { user: RequestUser },
+  ) {
+    return this.gradesService.getWeightedAverage(studentId, courseId, req.user);
+  }
 }

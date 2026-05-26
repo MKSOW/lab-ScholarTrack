@@ -33,6 +33,9 @@ let GradesController = class GradesController {
     findByStudent(studentId, req) {
         return this.gradesService.findByStudent(studentId, req.user);
     }
+    getWeightedAverage(studentId, courseId, req) {
+        return this.gradesService.getWeightedAverage(studentId, courseId, req.user);
+    }
 };
 exports.GradesController = GradesController;
 __decorate([
@@ -84,6 +87,22 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], GradesController.prototype, "findByStudent", null);
+__decorate([
+    (0, common_1.Get)('average/:studentId/:courseId'),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Moyenne pondérée — Σ(note × poids / 100). Si des notes manquent, retourne une moyenne provisoire normalisée + isComplete: false',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Moyenne pondérée calculée' }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: 'Étudiant non inscrit au cours' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: 'Accès refusé' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Cours ou étudiant introuvable' }),
+    __param(0, (0, common_1.Param)('studentId')),
+    __param(1, (0, common_1.Param)('courseId')),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", void 0)
+], GradesController.prototype, "getWeightedAverage", null);
 exports.GradesController = GradesController = __decorate([
     (0, swagger_1.ApiTags)('grades'),
     (0, common_1.Controller)('grades'),

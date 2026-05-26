@@ -80,5 +80,27 @@ export declare class GradesController {
         courseId: string;
         assessmentTypeId: string;
     })[]>;
+    getWeightedAverage(studentId: string, courseId: string, req: {
+        user: RequestUser;
+    }): Promise<{
+        student: {
+            id: string;
+            name: string;
+        };
+        course: {
+            id: string;
+            code: string;
+            name: string;
+        };
+        average: number | null;
+        isComplete: boolean;
+        coveredWeight: number;
+        details: {
+            assessmentType: string;
+            weight: number;
+            grade: number | null;
+            contribution: number | null;
+        }[];
+    }>;
 }
 export {};
