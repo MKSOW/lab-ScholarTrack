@@ -80,6 +80,15 @@ export declare class GradesController {
         courseId: string;
         assessmentTypeId: string;
     })[]>;
+    importFromCsv(courseId: string, file: Express.Multer.File, req: {
+        user: RequestUser;
+    }): Promise<{
+        imported: number;
+        course: {
+            code: string;
+            name: string;
+        };
+    }>;
     getWeightedAverage(studentId: string, courseId: string, req: {
         user: RequestUser;
     }): Promise<{

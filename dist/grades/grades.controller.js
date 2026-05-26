@@ -14,8 +14,10 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GradesController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
 const swagger_1 = require("@nestjs/swagger");
 const client_1 = require("@prisma/client");
+const common_2 = require("@nestjs/common");
 const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const create_grade_dto_1 = require("./dto/create-grade.dto");
 const grades_service_1 = require("./grades.service");
@@ -32,6 +34,11 @@ let GradesController = class GradesController {
     }
     findByStudent(studentId, req) {
         return this.gradesService.findByStudent(studentId, req.user);
+    }
+    importFromCsv(courseId, file, req) {
+        if (!file)
+            throw new common_2.BadRequestException('Aucun fichier reçu');
+        return this.gradesService.importFromCsv(courseId, file, req.user);
     }
     getWeightedAverage(studentId, courseId, req) {
         return this.gradesService.getWeightedAverage(studentId, courseId, req.user);
@@ -87,6 +94,40 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], GradesController.prototype, "findByStudent", null);
+__decorate([
+    (0, common_1.Post)('import/:courseId'),
+    (0, roles_decorator_1.Roles)(client_1.Role.TEACHER, client_1.Role.ADMIN),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file')),
+    (0, swagger_1.ApiConsumes)('multipart/form-data'),
+    (0, swagger_1.ApiBody)({
+        schema: {
+            type: 'object',
+            properties: {
+                file: {
+                    type: 'string',
+                    format: 'binary',
+                    description: 'Fichier CSV — colonnes : studentId,assessmentTypeId,value,comment',
+                },
+            },
+        },
+    }),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Import CSV de notes — tout-ou-rien : si une ligne est invalide, aucune note n\'est insérée',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 201, description: 'Import réussi — { imported: N }' }),
+    (0, swagger_1.ApiResponse)({
+        status: 422,
+        description: 'Erreurs de validation — rapport complet fourni, aucune insertion effectuée',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: 'Accès refusé' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Cours introuvable' }),
+    __param(0, (0, common_1.Param)('courseId')),
+    __param(1, (0, common_1.UploadedFile)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:returntype", void 0)
+], GradesController.prototype, "importFromCsv", null);
 __decorate([
     (0, common_1.Get)('average/:studentId/:courseId'),
     (0, swagger_1.ApiOperation)({

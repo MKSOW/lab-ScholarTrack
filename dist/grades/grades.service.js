@@ -236,11 +236,19 @@ let GradesService = GradesService_1 = class GradesService {
                 comment: row.comment,
             };
             if (!row.studentId) {
-                errors.push({ row: row.rowNumber, error: 'Le champ studentId est requis', data: rowData });
+                errors.push({
+                    row: row.rowNumber,
+                    error: 'Le champ studentId est requis',
+                    data: rowData,
+                });
                 continue;
             }
             if (!row.assessmentTypeId) {
-                errors.push({ row: row.rowNumber, error: 'Le champ assessmentTypeId est requis', data: rowData });
+                errors.push({
+                    row: row.rowNumber,
+                    error: 'Le champ assessmentTypeId est requis',
+                    data: rowData,
+                });
                 continue;
             }
             const numValue = parseFloat(row.value);
@@ -304,7 +312,10 @@ let GradesService = GradesService_1 = class GradesService {
             },
         })));
         this.logger.log(`Import CSV cours "${course.code}" : ${validRows.length} note(s) importée(s) par user ${requestingUser.id}`);
-        return { imported: validRows.length, course: { code: course.code, name: course.name } };
+        return {
+            imported: validRows.length,
+            course: { code: course.code, name: course.name },
+        };
     }
 };
 exports.GradesService = GradesService;
