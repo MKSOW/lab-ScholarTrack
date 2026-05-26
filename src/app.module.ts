@@ -7,6 +7,7 @@ import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 import { CoursesModule } from './courses/courses.module';
+import { GradesModule } from './grades/grades.module';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { auth } from './auth/auth';
 
@@ -18,6 +19,7 @@ import { auth } from './auth/auth';
     AuthModule.forRoot({ auth, disableGlobalAuthGuard: true }),
     UsersModule,
     CoursesModule,
+    GradesModule,
   ],
   controllers: [AppController],
   providers: [

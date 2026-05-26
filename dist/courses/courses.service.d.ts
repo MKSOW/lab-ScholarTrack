@@ -13,52 +13,52 @@ export declare class CoursesService {
     constructor(prisma: PrismaService);
     create(dto: CreateCourseDto): Promise<{
         teacher: {
-            name: string;
-            id: string;
             email: string;
+            id: string;
+            name: string;
         };
         assessmentTypes: {
-            name: string;
             id: string;
+            name: string;
             weight: Prisma.Decimal;
             courseId: string;
         }[];
     } & {
-        name: string;
         id: string;
-        code: string;
-        description: string | null;
-        capacity: number;
-        semester: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
+        description: string | null;
+        code: string;
+        capacity: number;
+        semester: string;
         teacherId: string;
     }>;
     findAll(user: CourseUser, filter: FilterCoursesDto): Promise<{
         data: ({
-            teacher: {
-                name: string;
-                id: string;
-                email: string;
-            };
-            assessmentTypes: {
-                name: string;
-                id: string;
-                weight: Prisma.Decimal;
-                courseId: string;
-            }[];
             _count: {
                 enrollments: number;
             };
+            teacher: {
+                email: string;
+                id: string;
+                name: string;
+            };
+            assessmentTypes: {
+                id: string;
+                name: string;
+                weight: Prisma.Decimal;
+                courseId: string;
+            }[];
         } & {
-            name: string;
             id: string;
-            code: string;
-            description: string | null;
-            capacity: number;
-            semester: string;
             createdAt: Date;
             updatedAt: Date;
+            name: string;
+            description: string | null;
+            code: string;
+            capacity: number;
+            semester: string;
             teacherId: string;
         })[];
         meta: {
@@ -69,47 +69,47 @@ export declare class CoursesService {
         };
     }>;
     findOne(id: string, user: CourseUser): Promise<{
-        teacher: {
-            name: string;
-            id: string;
-            email: string;
-        };
-        assessmentTypes: {
-            name: string;
-            id: string;
-            weight: Prisma.Decimal;
-            courseId: string;
-        }[];
         _count: {
             enrollments: number;
         };
+        teacher: {
+            email: string;
+            id: string;
+            name: string;
+        };
+        assessmentTypes: {
+            id: string;
+            name: string;
+            weight: Prisma.Decimal;
+            courseId: string;
+        }[];
     } & {
-        name: string;
         id: string;
-        code: string;
-        description: string | null;
-        capacity: number;
-        semester: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
+        description: string | null;
+        code: string;
+        capacity: number;
+        semester: string;
         teacherId: string;
     }>;
     update(id: string, dto: UpdateCourseDto): Promise<{
         assessmentTypes: {
-            name: string;
             id: string;
+            name: string;
             weight: Prisma.Decimal;
             courseId: string;
         }[];
     } & {
-        name: string;
         id: string;
-        code: string;
-        description: string | null;
-        capacity: number;
-        semester: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
+        description: string | null;
+        code: string;
+        capacity: number;
+        semester: string;
         teacherId: string;
     }>;
     remove(id: string): Promise<{
@@ -117,14 +117,14 @@ export declare class CoursesService {
     }>;
     enroll(courseId: string, studentId: string): Promise<{
         course: {
-            name: string;
             id: string;
+            name: string;
             code: string;
         };
         student: {
-            name: string;
-            id: string;
             email: string;
+            id: string;
+            name: string;
         };
     } & {
         id: string;
