@@ -10,6 +10,7 @@ import {
 import { AttendanceStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSessionDto } from './dto/create-session.dto';
+import { FilterStatsDto } from './dto/filter-stats.dto';
 import { RecordAttendanceDto } from './dto/record-attendance.dto';
 
 export type AttendanceUser = { id: string; role: Role };
@@ -330,6 +331,118 @@ export class AttendanceService {
       ratePercent: Math.round(rate * 10000) / 100,
       threshold: AT_RISK_THRESHOLD,
       atRisk: totalSessions > 0 && rate < AT_RISK_THRESHOLD,
+    };
+  }
+
+  // Stats de présence de TOUTE la classe pour un cours donné — vue prof.
+  // Optimisée pour éviter le problème N+1 : seulement 4 requêtes DB au total
+  // quel que soit le nombre d'étudiants (vs 5×N avec une boucle naïve).
+  // Le filtre atRisk restreint la liste retournée sans affecter la synthèse.
+  async computeCourseAttendanceStats(
+    courseId: string,
+    requestingUser: AttendanceUser,
+    filter: FilterStatsDto,
+  ) {
+    // Query 1/4 : cours + RBAC TEACHER/ADMIN
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, code: true, name: true, teacherId: true },
+    });
+    if (!course) throw new NotFoundException('Cours introuvable');
+
+    if (
+      requestingUser.role === Role.TEACHER &&
+      course.teacherId !== requestingUser.id
+    ) {
+      throw new ForbiddenException(
+        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+      );
+    }
+
+    // Query 2/4 : inscriptions du cours + nom de chaque étudiant
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { courseId },
+      select: {
+        studentId: true,
+        student: { select: { id: true, name: true } },
+      },
+      orderBy: { student: { name: 'asc' } },
+    });
+
+    // Query 3/4 : séances non annulées
+    const sessions = await this.prisma.courseSession.findMany({
+      where: { courseId, cancelledAt: null },
+      select: { id: true },
+    });
+    const totalSessions = sessions.length;
+    const sessionIds = sessions.map((s) => s.id);
+    const enrolledStudentIds = enrollments.map((e) => e.studentId);
+
+    // Query 4/4 : TOUTES les présences de TOUS les étudiants pour ces séances, en une seule passe.
+    // C'est l'astuce anti-N+1 : on ramène tout en RAM puis on calcule sans nouvelle requête.
+    const allAttendances =
+      totalSessions === 0 || enrolledStudentIds.length === 0
+        ? []
+        : await this.prisma.attendance.findMany({
+            where: {
+              courseSessionId: { in: sessionIds },
+              studentId: { in: enrolledStudentIds },
+            },
+            select: { studentId: true, status: true },
+          });
+
+    // Regroupement par étudiant (Map évite les O(n²) d'un filter à chaque itération)
+    const attendancesByStudent = new Map<string, AttendanceStatus[]>();
+    for (const a of allAttendances) {
+      const list = attendancesByStudent.get(a.studentId) ?? [];
+      list.push(a.status);
+      attendancesByStudent.set(a.studentId, list);
+    }
+
+    // Calcul des stats par étudiant — pure boucle RAM, aucune requête DB
+    const students = enrollments.map((e) => {
+      const studentAttendances = attendancesByStudent.get(e.studentId) ?? [];
+      const counts = { present: 0, absent: 0, late: 0, excused: 0 };
+      for (const status of studentAttendances) {
+        if (status === AttendanceStatus.PRESENT) counts.present++;
+        else if (status === AttendanceStatus.ABSENT) counts.absent++;
+        else if (status === AttendanceStatus.LATE) counts.late++;
+        else if (status === AttendanceStatus.EXCUSED) counts.excused++;
+      }
+      // Séances sans entrée Attendance pour cet étudiant = absences implicites
+      const implicitAbsent = totalSessions - studentAttendances.length;
+      counts.absent += implicitAbsent;
+
+      const presentCount = counts.present + counts.excused;
+      const rate = totalSessions > 0 ? presentCount / totalSessions : 1;
+
+      return {
+        studentId: e.studentId,
+        studentName: e.student.name,
+        counts,
+        rate: Math.round(rate * 10000) / 10000,
+        ratePercent: Math.round(rate * 10000) / 100,
+        atRisk: totalSessions > 0 && rate < AT_RISK_THRESHOLD,
+      };
+    });
+
+    // Synthèse top-level : toujours calculée sur la liste COMPLÈTE (le filtre n'altère pas le compte global)
+    const atRiskCount = students.filter((s) => s.atRisk).length;
+
+    // Application du filtre uniquement sur la liste retournée
+    const filteredStudents = filter.atRisk
+      ? students.filter((s) => s.atRisk)
+      : students;
+
+    return {
+      courseId,
+      courseCode: course.code,
+      courseName: course.name,
+      totalSessions,
+      threshold: AT_RISK_THRESHOLD,
+      totalStudents: enrollments.length,
+      atRiskCount,
+      students: filteredStudents,
     };
   }
 }

@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -14,6 +15,7 @@ import { Role } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AttendanceService } from './attendance.service';
 import { CreateSessionDto } from './dto/create-session.dto';
+import { FilterStatsDto } from './dto/filter-stats.dto';
 import { RecordAttendanceDto } from './dto/record-attendance.dto';
 
 type RequestUser = { id: string; role: Role };
@@ -88,6 +90,29 @@ export class AttendanceController {
   @ApiResponse({ status: 409, description: 'Séance déjà annulée' })
   cancelSession(@Param('id') id: string, @Req() req: { user: RequestUser }) {
     return this.attendanceService.cancelSession(id, req.user);
+  }
+
+  @Get('stats/course/:courseId')
+  @Roles(Role.TEACHER, Role.ADMIN)
+  @ApiOperation({
+    summary:
+      'Statistiques de présence de toute la classe pour un cours (vue prof)',
+    description:
+      'Renvoie pour chaque étudiant inscrit son taux de présence et son flag atRisk, plus une synthèse (totalStudents, atRiskCount). Filtre optionnel ?atRisk=true pour ne lister que les étudiants à risque.\n\nRBAC : TEACHER (son cours uniquement) ou ADMIN.',
+  })
+  @ApiResponse({ status: 200, description: 'Statistiques de la classe' })
+  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiResponse({ status: 404, description: 'Cours introuvable' })
+  getCourseStats(
+    @Param('courseId') courseId: string,
+    @Query() filter: FilterStatsDto,
+    @Req() req: { user: RequestUser },
+  ) {
+    return this.attendanceService.computeCourseAttendanceStats(
+      courseId,
+      req.user,
+      filter,
+    );
   }
 
   @Get('stats/course/:courseId/student/:studentId')
