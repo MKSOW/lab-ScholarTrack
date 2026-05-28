@@ -1,13 +1,16 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSessionDto } from './dto/create-session.dto';
+import { RecordAttendanceDto } from './dto/record-attendance.dto';
 
 export type AttendanceUser = { id: string; role: Role };
 
@@ -119,5 +122,109 @@ export class AttendanceService {
       `Séance annulée : ${session.course.code} — ${updated.date.toISOString()}`,
     );
     return updated;
+  }
+
+  // Enregistrement en masse — toutes les présences validées avant toute écriture.
+  // Si une seule entrée est invalide → 422 avec rapport, aucune ligne touchée.
+  // Upsert pour permettre la correction d'une présence déjà saisie.
+  async recordAttendances(
+    sessionId: string,
+    dto: RecordAttendanceDto,
+    requestingUser: AttendanceUser,
+  ) {
+    // 1. La séance doit exister
+    const session = await this.prisma.courseSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        course: { select: { id: true, teacherId: true, code: true } },
+      },
+    });
+    if (!session) throw new NotFoundException('Séance introuvable');
+
+    // 2. La séance ne doit pas être annulée
+    if (session.cancelledAt) {
+      throw new BadRequestException(
+        "Impossible d'enregistrer des présences sur une séance annulée",
+      );
+    }
+
+    // 3. Un TEACHER ne peut saisir que pour ses propres cours
+    if (
+      requestingUser.role === Role.TEACHER &&
+      session.course.teacherId !== requestingUser.id
+    ) {
+      throw new ForbiddenException(
+        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+      );
+    }
+
+    // 4. Pré-chargement des étudiants inscrits (évite N+1 queries)
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { courseId: session.course.id },
+      select: { studentId: true },
+    });
+    const enrolledStudentIds = new Set(enrollments.map((e) => e.studentId));
+
+    // 5. Validation complète — collecte de toutes les erreurs avant toute écriture
+    const errors: { index: number; studentId: string; error: string }[] = [];
+    const seenInRequest = new Set<string>();
+
+    dto.attendances.forEach((item, index) => {
+      if (!enrolledStudentIds.has(item.studentId)) {
+        errors.push({
+          index,
+          studentId: item.studentId,
+          error: `Étudiant non inscrit au cours "${session.course.code}"`,
+        });
+        return;
+      }
+      if (seenInRequest.has(item.studentId)) {
+        errors.push({
+          index,
+          studentId: item.studentId,
+          error:
+            'Doublon : cet étudiant apparaît plusieurs fois dans la requête',
+        });
+        return;
+      }
+      seenInRequest.add(item.studentId);
+    });
+
+    if (errors.length > 0) {
+      throw new UnprocessableEntityException({
+        message: `Enregistrement annulé : ${errors.length} erreur(s) détectée(s)`,
+        errors,
+      });
+    }
+
+    // 6. Transaction upsert — atomique : tout ou rien
+    const results = await this.prisma.$transaction(
+      dto.attendances.map((item) =>
+        this.prisma.attendance.upsert({
+          where: {
+            studentId_courseSessionId: {
+              studentId: item.studentId,
+              courseSessionId: sessionId,
+            },
+          },
+          update: { status: item.status, recordedAt: new Date() },
+          create: {
+            studentId: item.studentId,
+            courseSessionId: sessionId,
+            status: item.status,
+          },
+        }),
+      ),
+    );
+
+    this.logger.log(
+      `Présences enregistrées : ${results.length} pour séance ${session.id} (cours ${session.course.code})`,
+    );
+
+    return {
+      recorded: results.length,
+      sessionId,
+      course: { code: session.course.code },
+    };
   }
 }

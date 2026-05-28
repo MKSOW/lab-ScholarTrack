@@ -14,6 +14,7 @@ import { Role } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AttendanceService } from './attendance.service';
 import { CreateSessionDto } from './dto/create-session.dto';
+import { RecordAttendanceDto } from './dto/record-attendance.dto';
 
 type RequestUser = { id: string; role: Role };
 
@@ -51,6 +52,29 @@ export class AttendanceController {
     @Req() req: { user: RequestUser },
   ) {
     return this.attendanceService.findSessionsByCourse(courseId, req.user);
+  }
+
+  @Post('sessions/:sessionId/record')
+  @Roles(Role.TEACHER, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Enregistrer en masse les présences d'une séance — upsert atomique tout-ou-rien",
+  })
+  @ApiResponse({ status: 200, description: 'Présences enregistrées' })
+  @ApiResponse({ status: 400, description: 'Séance annulée' })
+  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiResponse({ status: 404, description: 'Séance introuvable' })
+  @ApiResponse({
+    status: 422,
+    description: 'Erreurs détectées — rapport complet, aucune écriture',
+  })
+  recordAttendances(
+    @Param('sessionId') sessionId: string,
+    @Body() dto: RecordAttendanceDto,
+    @Req() req: { user: RequestUser },
+  ) {
+    return this.attendanceService.recordAttendances(sessionId, dto, req.user);
   }
 
   @Patch('sessions/:id/cancel')
