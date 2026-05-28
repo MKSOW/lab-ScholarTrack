@@ -19,6 +19,7 @@ const client_1 = require("@prisma/client");
 const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const attendance_service_1 = require("./attendance.service");
 const create_session_dto_1 = require("./dto/create-session.dto");
+const record_attendance_dto_1 = require("./dto/record-attendance.dto");
 let AttendanceController = class AttendanceController {
     attendanceService;
     constructor(attendanceService) {
@@ -29,6 +30,9 @@ let AttendanceController = class AttendanceController {
     }
     findSessionsByCourse(courseId, req) {
         return this.attendanceService.findSessionsByCourse(courseId, req.user);
+    }
+    recordAttendances(sessionId, dto, req) {
+        return this.attendanceService.recordAttendances(sessionId, dto, req.user);
     }
     cancelSession(id, req) {
         return this.attendanceService.cancelSession(id, req.user);
@@ -65,6 +69,28 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], AttendanceController.prototype, "findSessionsByCourse", null);
+__decorate([
+    (0, common_1.Post)('sessions/:sessionId/record'),
+    (0, roles_decorator_1.Roles)(client_1.Role.TEACHER, client_1.Role.ADMIN),
+    (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Enregistrer en masse les présences d\'une séance — upsert atomique tout-ou-rien',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Présences enregistrées' }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: 'Séance annulée' }),
+    (0, swagger_1.ApiResponse)({ status: 403, description: 'Accès refusé' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Séance introuvable' }),
+    (0, swagger_1.ApiResponse)({
+        status: 422,
+        description: 'Erreurs détectées — rapport complet, aucune écriture',
+    }),
+    __param(0, (0, common_1.Param)('sessionId')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, record_attendance_dto_1.RecordAttendanceDto, Object]),
+    __metadata("design:returntype", void 0)
+], AttendanceController.prototype, "recordAttendances", null);
 __decorate([
     (0, common_1.Patch)('sessions/:id/cancel'),
     (0, roles_decorator_1.Roles)(client_1.Role.TEACHER, client_1.Role.ADMIN),

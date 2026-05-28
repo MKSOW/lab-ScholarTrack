@@ -1,6 +1,7 @@
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSessionDto } from './dto/create-session.dto';
+import { RecordAttendanceDto } from './dto/record-attendance.dto';
 export type AttendanceUser = {
     id: string;
     role: Role;
@@ -42,5 +43,12 @@ export declare class AttendanceService {
         cancelledAt: Date | null;
         createdAt: Date;
         courseId: string;
+    }>;
+    recordAttendances(sessionId: string, dto: RecordAttendanceDto, requestingUser: AttendanceUser): Promise<{
+        recorded: number;
+        sessionId: string;
+        course: {
+            code: string;
+        };
     }>;
 }

@@ -92,6 +92,75 @@ let AttendanceService = AttendanceService_1 = class AttendanceService {
         this.logger.log(`Séance annulée : ${session.course.code} — ${updated.date.toISOString()}`);
         return updated;
     }
+    async recordAttendances(sessionId, dto, requestingUser) {
+        const session = await this.prisma.courseSession.findUnique({
+            where: { id: sessionId },
+            include: {
+                course: { select: { id: true, teacherId: true, code: true } },
+            },
+        });
+        if (!session)
+            throw new common_1.NotFoundException('Séance introuvable');
+        if (session.cancelledAt) {
+            throw new common_1.BadRequestException("Impossible d'enregistrer des présences sur une séance annulée");
+        }
+        if (requestingUser.role === client_1.Role.TEACHER &&
+            session.course.teacherId !== requestingUser.id) {
+            throw new common_1.ForbiddenException("Accès refusé : vous n'êtes pas le professeur de ce cours");
+        }
+        const enrollments = await this.prisma.enrollment.findMany({
+            where: { courseId: session.course.id },
+            select: { studentId: true },
+        });
+        const enrolledStudentIds = new Set(enrollments.map((e) => e.studentId));
+        const errors = [];
+        const seenInRequest = new Set();
+        dto.attendances.forEach((item, index) => {
+            if (!enrolledStudentIds.has(item.studentId)) {
+                errors.push({
+                    index,
+                    studentId: item.studentId,
+                    error: `Étudiant non inscrit au cours "${session.course.code}"`,
+                });
+                return;
+            }
+            if (seenInRequest.has(item.studentId)) {
+                errors.push({
+                    index,
+                    studentId: item.studentId,
+                    error: 'Doublon : cet étudiant apparaît plusieurs fois dans la requête',
+                });
+                return;
+            }
+            seenInRequest.add(item.studentId);
+        });
+        if (errors.length > 0) {
+            throw new common_1.UnprocessableEntityException({
+                message: `Enregistrement annulé : ${errors.length} erreur(s) détectée(s)`,
+                errors,
+            });
+        }
+        const results = await this.prisma.$transaction(dto.attendances.map((item) => this.prisma.attendance.upsert({
+            where: {
+                studentId_courseSessionId: {
+                    studentId: item.studentId,
+                    courseSessionId: sessionId,
+                },
+            },
+            update: { status: item.status, recordedAt: new Date() },
+            create: {
+                studentId: item.studentId,
+                courseSessionId: sessionId,
+                status: item.status,
+            },
+        })));
+        this.logger.log(`Présences enregistrées : ${results.length} pour séance ${session.id} (cours ${session.course.code})`);
+        return {
+            recorded: results.length,
+            sessionId,
+            course: { code: session.course.code },
+        };
+    }
 };
 exports.AttendanceService = AttendanceService;
 exports.AttendanceService = AttendanceService = AttendanceService_1 = __decorate([
