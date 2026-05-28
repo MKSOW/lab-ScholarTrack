@@ -95,14 +95,13 @@ export class AttendanceController {
   @Get('stats/course/:courseId')
   @Roles(Role.TEACHER, Role.ADMIN)
   @ApiOperation({
-    summary:
-      'Statistiques de présence de toute la classe pour un cours (vue prof)',
+    summary: 'Class-wide attendance stats for a course (teacher view)',
     description:
-      'Renvoie pour chaque étudiant inscrit son taux de présence et son flag atRisk, plus une synthèse (totalStudents, atRiskCount). Filtre optionnel ?atRisk=true pour ne lister que les étudiants à risque.\n\nRBAC : TEACHER (son cours uniquement) ou ADMIN.',
+      "Returns each enrolled student's attendance rate and atRisk flag, plus a top-level summary (totalStudents, atRiskCount). Optional ?atRisk=true filter to list only at-risk students.\n\nRBAC: TEACHER (own course only) or ADMIN.",
   })
-  @ApiResponse({ status: 200, description: 'Statistiques de la classe' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Cours introuvable' })
+  @ApiResponse({ status: 200, description: 'Class statistics' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
   getCourseStats(
     @Param('courseId') courseId: string,
     @Query() filter: FilterStatsDto,
@@ -118,16 +117,15 @@ export class AttendanceController {
   @Get('stats/course/:courseId/student/:studentId')
   @Roles(Role.STUDENT, Role.TEACHER, Role.ADMIN)
   @ApiOperation({
-    summary:
-      "Statistiques de présence d'un étudiant pour un cours (taux + flag atRisk)",
+    summary: 'Per-student attendance stats for a course (rate + atRisk flag)',
     description:
-      'Renvoie le nombre total de séances non annulées, la répartition par statut, le taux de présence (PRESENT + EXCUSED) et le flag atRisk déclenché si le taux passe sous le seuil configuré.\n\nRBAC : STUDENT ne consulte que ses propres stats, TEACHER uniquement les étudiants de ses cours, ADMIN sans restriction.',
+      'Returns the total number of non-cancelled sessions, the breakdown by status, the attendance rate (PRESENT + EXCUSED) and the atRisk flag triggered when the rate drops below the configured threshold.\n\nRBAC: STUDENT sees own stats only, TEACHER sees students of own courses only, ADMIN unrestricted.',
   })
-  @ApiResponse({ status: 200, description: 'Statistiques calculées' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiResponse({ status: 200, description: 'Statistics computed' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
   @ApiResponse({
     status: 404,
-    description: 'Cours introuvable ou étudiant non inscrit',
+    description: 'Course not found or student not enrolled',
   })
   getStudentStats(
     @Param('courseId') courseId: string,

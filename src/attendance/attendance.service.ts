@@ -15,8 +15,8 @@ import { RecordAttendanceDto } from './dto/record-attendance.dto';
 
 export type AttendanceUser = { id: string; role: Role };
 
-// Seuil de présence en dessous duquel l'étudiant est flaggé "atRisk".
-// Lu une fois au chargement du module ; fallback à 0.75 si la variable n'est pas définie.
+// Attendance rate threshold below which a student is flagged "atRisk".
+// Read once at module load; falls back to 0.75 when the env variable is not set.
 const AT_RISK_THRESHOLD = Number(
   process.env.ATTENDANCE_AT_RISK_THRESHOLD ?? 0.75,
 );
@@ -235,33 +235,33 @@ export class AttendanceService {
     };
   }
 
-  // Calcul des stats de présence pour (étudiant, cours).
-  // - Taux = (PRESENT + EXCUSED) / total_séances_non_annulées.
-  // - LATE et ABSENT comptent comme absent.
-  // - Les séances sans entrée Attendance pour l'étudiant sont comptées comme absences implicites.
-  // - atRisk = true si taux < seuil configuré (ATTENDANCE_AT_RISK_THRESHOLD).
+  // Attendance stats for a (student, course) pair.
+  // - Rate = (PRESENT + EXCUSED) / total_non_cancelled_sessions.
+  // - LATE and ABSENT count as absent.
+  // - Sessions with no Attendance entry for the student are counted as implicit absences.
+  // - atRisk = true when rate < configured threshold (ATTENDANCE_AT_RISK_THRESHOLD).
   async computeAttendanceStats(
     studentId: string,
     courseId: string,
     requestingUser: AttendanceUser,
   ) {
-    // 1. Le cours doit exister
+    // 1. Course must exist
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       select: { id: true, code: true, name: true, teacherId: true },
     });
-    if (!course) throw new NotFoundException('Cours introuvable');
+    if (!course) throw new NotFoundException('Course not found');
 
     // 2. RBAC ownership
-    //    - STUDENT : uniquement ses propres stats
-    //    - TEACHER : uniquement les étudiants de ses cours
-    //    - ADMIN  : pas de restriction
+    //    - STUDENT: own stats only
+    //    - TEACHER: only students of their own courses
+    //    - ADMIN:  unrestricted
     if (
       requestingUser.role === Role.STUDENT &&
       requestingUser.id !== studentId
     ) {
       throw new ForbiddenException(
-        'Accès refusé : vous ne pouvez consulter que vos propres statistiques',
+        'Access denied: you can only view your own statistics',
       );
     }
     if (
@@ -269,28 +269,28 @@ export class AttendanceService {
       course.teacherId !== requestingUser.id
     ) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 
-    // 3. L'étudiant doit être inscrit au cours
+    // 3. Student must be enrolled in the course
     const enrollment = await this.prisma.enrollment.findUnique({
       where: { studentId_courseId: { studentId, courseId } },
     });
     if (!enrollment) {
       throw new NotFoundException(
-        `Étudiant non inscrit au cours "${course.code}"`,
+        `Student is not enrolled in course "${course.code}"`,
       );
     }
 
-    // 4. Récupération des séances non annulées du cours
+    // 4. Fetch non-cancelled sessions of the course
     const sessions = await this.prisma.courseSession.findMany({
       where: { courseId, cancelledAt: null },
       select: { id: true },
     });
     const totalSessions = sessions.length;
 
-    // 5. Récupération des présences de l'étudiant pour ces séances uniquement
+    // 5. Fetch the student's attendances for these sessions only
     const attendances =
       totalSessions === 0
         ? []
@@ -302,7 +302,7 @@ export class AttendanceService {
             select: { status: true },
           });
 
-    // 6. Comptage par statut
+    // 6. Count by status
     const counts = { present: 0, absent: 0, late: 0, excused: 0 };
     for (const a of attendances) {
       if (a.status === AttendanceStatus.PRESENT) counts.present++;
@@ -311,12 +311,12 @@ export class AttendanceService {
       else if (a.status === AttendanceStatus.EXCUSED) counts.excused++;
     }
 
-    // 7. Séances sans entrée Attendance pour cet étudiant → comptées comme absences implicites
+    // 7. Sessions with no Attendance entry for this student → counted as implicit absences
     const implicitAbsent = totalSessions - attendances.length;
     counts.absent += implicitAbsent;
 
-    // 8. Calcul du taux et du flag atRisk
-    //    Si aucune séance n'a été tenue, taux = 1 (100%) par convention → atRisk = false.
+    // 8. Compute rate and atRisk flag
+    //    If no session has been held, rate = 1 (100%) by convention → atRisk = false.
     const presentCount = counts.present + counts.excused;
     const rate = totalSessions > 0 ? presentCount / totalSessions : 1;
 
@@ -334,32 +334,32 @@ export class AttendanceService {
     };
   }
 
-  // Stats de présence de TOUTE la classe pour un cours donné — vue prof.
-  // Optimisée pour éviter le problème N+1 : seulement 4 requêtes DB au total
-  // quel que soit le nombre d'étudiants (vs 5×N avec une boucle naïve).
-  // Le filtre atRisk restreint la liste retournée sans affecter la synthèse.
+  // Attendance stats for an ENTIRE class — teacher view.
+  // Optimized to avoid the N+1 problem: only 4 DB queries total
+  // regardless of class size (vs 5×N with a naive loop).
+  // The atRisk filter narrows the returned list without affecting the top-level summary.
   async computeCourseAttendanceStats(
     courseId: string,
     requestingUser: AttendanceUser,
     filter: FilterStatsDto,
   ) {
-    // Query 1/4 : cours + RBAC TEACHER/ADMIN
+    // Query 1/4: course + TEACHER/ADMIN RBAC
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       select: { id: true, code: true, name: true, teacherId: true },
     });
-    if (!course) throw new NotFoundException('Cours introuvable');
+    if (!course) throw new NotFoundException('Course not found');
 
     if (
       requestingUser.role === Role.TEACHER &&
       course.teacherId !== requestingUser.id
     ) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 
-    // Query 2/4 : inscriptions du cours + nom de chaque étudiant
+    // Query 2/4: course enrollments + each student's name
     const enrollments = await this.prisma.enrollment.findMany({
       where: { courseId },
       select: {
@@ -369,7 +369,7 @@ export class AttendanceService {
       orderBy: { student: { name: 'asc' } },
     });
 
-    // Query 3/4 : séances non annulées
+    // Query 3/4: non-cancelled sessions
     const sessions = await this.prisma.courseSession.findMany({
       where: { courseId, cancelledAt: null },
       select: { id: true },
@@ -378,8 +378,8 @@ export class AttendanceService {
     const sessionIds = sessions.map((s) => s.id);
     const enrolledStudentIds = enrollments.map((e) => e.studentId);
 
-    // Query 4/4 : TOUTES les présences de TOUS les étudiants pour ces séances, en une seule passe.
-    // C'est l'astuce anti-N+1 : on ramène tout en RAM puis on calcule sans nouvelle requête.
+    // Query 4/4: ALL attendances for ALL students across these sessions, in a single pass.
+    // This is the anti-N+1 trick: pull everything into memory once, then compute without further queries.
     const allAttendances =
       totalSessions === 0 || enrolledStudentIds.length === 0
         ? []
@@ -391,7 +391,7 @@ export class AttendanceService {
             select: { studentId: true, status: true },
           });
 
-    // Regroupement par étudiant (Map évite les O(n²) d'un filter à chaque itération)
+    // Group by student (Map avoids the O(n²) cost of running a filter on every iteration)
     const attendancesByStudent = new Map<string, AttendanceStatus[]>();
     for (const a of allAttendances) {
       const list = attendancesByStudent.get(a.studentId) ?? [];
@@ -399,7 +399,7 @@ export class AttendanceService {
       attendancesByStudent.set(a.studentId, list);
     }
 
-    // Calcul des stats par étudiant — pure boucle RAM, aucune requête DB
+    // Per-student stats — pure in-memory loop, no DB query
     const students = enrollments.map((e) => {
       const studentAttendances = attendancesByStudent.get(e.studentId) ?? [];
       const counts = { present: 0, absent: 0, late: 0, excused: 0 };
@@ -409,7 +409,7 @@ export class AttendanceService {
         else if (status === AttendanceStatus.LATE) counts.late++;
         else if (status === AttendanceStatus.EXCUSED) counts.excused++;
       }
-      // Séances sans entrée Attendance pour cet étudiant = absences implicites
+      // Sessions with no Attendance entry for this student = implicit absences
       const implicitAbsent = totalSessions - studentAttendances.length;
       counts.absent += implicitAbsent;
 
@@ -426,10 +426,10 @@ export class AttendanceService {
       };
     });
 
-    // Synthèse top-level : toujours calculée sur la liste COMPLÈTE (le filtre n'altère pas le compte global)
+    // Top-level summary: always computed on the FULL list (the filter does not affect global counts)
     const atRiskCount = students.filter((s) => s.atRisk).length;
 
-    // Application du filtre uniquement sur la liste retournée
+    // Apply the filter only to the returned list
     const filteredStudents = filter.atRisk
       ? students.filter((s) => s.atRisk)
       : students;
