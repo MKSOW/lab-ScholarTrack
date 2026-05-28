@@ -7,12 +7,18 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { AttendanceStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { RecordAttendanceDto } from './dto/record-attendance.dto';
 
 export type AttendanceUser = { id: string; role: Role };
+
+// Seuil de présence en dessous duquel l'étudiant est flaggé "atRisk".
+// Lu une fois au chargement du module ; fallback à 0.75 si la variable n'est pas définie.
+const AT_RISK_THRESHOLD = Number(
+  process.env.ATTENDANCE_AT_RISK_THRESHOLD ?? 0.75,
+);
 
 @Injectable()
 export class AttendanceService {
@@ -225,6 +231,105 @@ export class AttendanceService {
       recorded: results.length,
       sessionId,
       course: { code: session.course.code },
+    };
+  }
+
+  // Calcul des stats de présence pour (étudiant, cours).
+  // - Taux = (PRESENT + EXCUSED) / total_séances_non_annulées.
+  // - LATE et ABSENT comptent comme absent.
+  // - Les séances sans entrée Attendance pour l'étudiant sont comptées comme absences implicites.
+  // - atRisk = true si taux < seuil configuré (ATTENDANCE_AT_RISK_THRESHOLD).
+  async computeAttendanceStats(
+    studentId: string,
+    courseId: string,
+    requestingUser: AttendanceUser,
+  ) {
+    // 1. Le cours doit exister
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, code: true, name: true, teacherId: true },
+    });
+    if (!course) throw new NotFoundException('Cours introuvable');
+
+    // 2. RBAC ownership
+    //    - STUDENT : uniquement ses propres stats
+    //    - TEACHER : uniquement les étudiants de ses cours
+    //    - ADMIN  : pas de restriction
+    if (
+      requestingUser.role === Role.STUDENT &&
+      requestingUser.id !== studentId
+    ) {
+      throw new ForbiddenException(
+        'Accès refusé : vous ne pouvez consulter que vos propres statistiques',
+      );
+    }
+    if (
+      requestingUser.role === Role.TEACHER &&
+      course.teacherId !== requestingUser.id
+    ) {
+      throw new ForbiddenException(
+        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+      );
+    }
+
+    // 3. L'étudiant doit être inscrit au cours
+    const enrollment = await this.prisma.enrollment.findUnique({
+      where: { studentId_courseId: { studentId, courseId } },
+    });
+    if (!enrollment) {
+      throw new NotFoundException(
+        `Étudiant non inscrit au cours "${course.code}"`,
+      );
+    }
+
+    // 4. Récupération des séances non annulées du cours
+    const sessions = await this.prisma.courseSession.findMany({
+      where: { courseId, cancelledAt: null },
+      select: { id: true },
+    });
+    const totalSessions = sessions.length;
+
+    // 5. Récupération des présences de l'étudiant pour ces séances uniquement
+    const attendances =
+      totalSessions === 0
+        ? []
+        : await this.prisma.attendance.findMany({
+            where: {
+              studentId,
+              courseSessionId: { in: sessions.map((s) => s.id) },
+            },
+            select: { status: true },
+          });
+
+    // 6. Comptage par statut
+    const counts = { present: 0, absent: 0, late: 0, excused: 0 };
+    for (const a of attendances) {
+      if (a.status === AttendanceStatus.PRESENT) counts.present++;
+      else if (a.status === AttendanceStatus.ABSENT) counts.absent++;
+      else if (a.status === AttendanceStatus.LATE) counts.late++;
+      else if (a.status === AttendanceStatus.EXCUSED) counts.excused++;
+    }
+
+    // 7. Séances sans entrée Attendance pour cet étudiant → comptées comme absences implicites
+    const implicitAbsent = totalSessions - attendances.length;
+    counts.absent += implicitAbsent;
+
+    // 8. Calcul du taux et du flag atRisk
+    //    Si aucune séance n'a été tenue, taux = 1 (100%) par convention → atRisk = false.
+    const presentCount = counts.present + counts.excused;
+    const rate = totalSessions > 0 ? presentCount / totalSessions : 1;
+
+    return {
+      studentId,
+      courseId,
+      courseCode: course.code,
+      courseName: course.name,
+      totalSessions,
+      counts,
+      rate: Math.round(rate * 10000) / 10000,
+      ratePercent: Math.round(rate * 10000) / 100,
+      threshold: AT_RISK_THRESHOLD,
+      atRisk: totalSessions > 0 && rate < AT_RISK_THRESHOLD,
     };
   }
 }

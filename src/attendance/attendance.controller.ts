@@ -89,4 +89,30 @@ export class AttendanceController {
   cancelSession(@Param('id') id: string, @Req() req: { user: RequestUser }) {
     return this.attendanceService.cancelSession(id, req.user);
   }
+
+  @Get('stats/course/:courseId/student/:studentId')
+  @Roles(Role.STUDENT, Role.TEACHER, Role.ADMIN)
+  @ApiOperation({
+    summary:
+      "Statistiques de présence d'un étudiant pour un cours (taux + flag atRisk)",
+    description:
+      'Renvoie le nombre total de séances non annulées, la répartition par statut, le taux de présence (PRESENT + EXCUSED) et le flag atRisk déclenché si le taux passe sous le seuil configuré.\n\nRBAC : STUDENT ne consulte que ses propres stats, TEACHER uniquement les étudiants de ses cours, ADMIN sans restriction.',
+  })
+  @ApiResponse({ status: 200, description: 'Statistiques calculées' })
+  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiResponse({
+    status: 404,
+    description: 'Cours introuvable ou étudiant non inscrit',
+  })
+  getStudentStats(
+    @Param('courseId') courseId: string,
+    @Param('studentId') studentId: string,
+    @Req() req: { user: RequestUser },
+  ) {
+    return this.attendanceService.computeAttendanceStats(
+      studentId,
+      courseId,
+      req.user,
+    );
+  }
 }
