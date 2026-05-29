@@ -1,6 +1,12 @@
-import { Controller, Get, Param } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Param, Res } from '@nestjs/common';
+import {
+  ApiOperation,
+  ApiProduces,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Role } from '@prisma/client';
+import type { Response } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AdminService } from './admin.service';
 
@@ -24,5 +30,30 @@ export class AdminController {
   })
   getSemesterStats(@Param('semester') semester: string) {
     return this.adminService.getSemesterStats(semester);
+  }
+
+  @Get('export/semester/:semester')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'CSV export of semester results (admin)',
+    description:
+      'Downloads a CSV file with one row per enrolled student per course. Columns: studentId, studentName, studentEmail, courseCode, courseName, weightedAverage (0–20 or empty), isComplete, attendanceRate (0–1), atRisk.\n\nRBAC: ADMIN only.',
+  })
+  @ApiProduces('text/csv')
+  @ApiResponse({ status: 200, description: 'CSV file downloaded' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({
+    status: 404,
+    description: 'No course found for this semester',
+  })
+  async exportSemesterCsv(
+    @Param('semester') semester: string,
+    @Res() res: Response,
+  ) {
+    const csv = await this.adminService.exportSemesterCsv(semester);
+    const filename = `semester-${semester}-results.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
   }
 }

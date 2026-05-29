@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AttendanceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { buildCsvRow } from './utils/csv-export';
 
 // Attendance rate threshold below which a student is flagged "atRisk".
 // Same source of truth as AttendanceService — kept in env so the policy stays consistent.
@@ -224,6 +225,184 @@ export class AdminService {
         rate: Math.round((sumRates / courseStudentIds.length) * 10000) / 10000,
         atRiskCount,
       });
+    }
+
+    return out;
+  }
+
+  // CSV export — one row per (student, course) enrollment for the semester.
+  // Columns: studentId, studentName, studentEmail, courseCode, courseName,
+  //          weightedAverage, isComplete, attendanceRate, atRisk
+  async exportSemesterCsv(semester: string): Promise<string> {
+    const courses = await this.prisma.course.findMany({
+      where: { semester },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        assessmentTypes: { select: { id: true, weight: true } },
+      },
+      orderBy: { code: 'asc' },
+    });
+    if (courses.length === 0) {
+      throw new NotFoundException(`No course found for semester "${semester}"`);
+    }
+
+    const courseIds = courses.map((c) => c.id);
+
+    // Single query — all enrollments with embedded student data
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { courseId: { in: courseIds } },
+      select: {
+        studentId: true,
+        courseId: true,
+        student: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: [{ student: { name: 'asc' } }, { course: { code: 'asc' } }],
+    });
+
+    // Single query — all grades for the semester
+    const grades = await this.prisma.grade.findMany({
+      where: { courseId: { in: courseIds } },
+      select: {
+        studentId: true,
+        courseId: true,
+        assessmentTypeId: true,
+        value: true,
+      },
+    });
+
+    const attendanceRates =
+      await this.computePerStudentCourseAttendanceRates(courseIds);
+
+    // courseId → course object (with assessment types)
+    const courseMap = new Map(courses.map((c) => [c.id, c]));
+
+    // (studentId::courseId) → Map<assessmentTypeId, gradeValue>
+    const gradesByKey = new Map<string, Map<string, number>>();
+    for (const g of grades) {
+      const key = `${g.studentId}::${g.courseId}`;
+      const map = gradesByKey.get(key) ?? new Map<string, number>();
+      map.set(g.assessmentTypeId, Number(g.value));
+      gradesByKey.set(key, map);
+    }
+
+    const HEADER =
+      'studentId,studentName,studentEmail,courseCode,courseName,weightedAverage,isComplete,attendanceRate,atRisk';
+    const lines: string[] = [HEADER];
+
+    for (const e of enrollments) {
+      const course = courseMap.get(e.courseId)!;
+      const compositeKey = `${e.studentId}::${e.courseId}`;
+      const gradeMap =
+        gradesByKey.get(compositeKey) ?? new Map<string, number>();
+
+      // Weighted average — same formula as GradesService.getWeightedAverage
+      let weightedSum = 0;
+      let coveredWeight = 0;
+      for (const at of course.assessmentTypes) {
+        const w = Number(at.weight);
+        const grade = gradeMap.get(at.id);
+        if (grade !== undefined) {
+          weightedSum += (grade * w) / 100;
+          coveredWeight += w;
+        }
+      }
+      // isComplete when all assessment types (summing to 100) have been graded
+      const isComplete =
+        course.assessmentTypes.length > 0 && coveredWeight === 100;
+      const weightedAverage =
+        coveredWeight > 0
+          ? parseFloat(((weightedSum / coveredWeight) * 100).toFixed(2))
+          : null;
+
+      const attendanceRate = attendanceRates.get(compositeKey) ?? 1;
+      const atRisk = attendanceRate < AT_RISK_THRESHOLD;
+
+      lines.push(
+        buildCsvRow([
+          e.student.id,
+          e.student.name,
+          e.student.email,
+          course.code,
+          course.name,
+          weightedAverage !== null ? weightedAverage.toFixed(2) : '',
+          isComplete ? 'true' : 'false',
+          (Math.round(attendanceRate * 10000) / 10000).toString(),
+          atRisk ? 'true' : 'false',
+        ]),
+      );
+    }
+
+    this.logger.log(
+      `CSV export semester "${semester}" — ${enrollments.length} row(s) generated`,
+    );
+
+    return lines.join('\n');
+  }
+
+  // Returns per-(student, course) attendance rate for every enrolled student.
+  // Key format: `${studentId}::${courseId}`, value: 0–1 rate.
+  // Rate defaults to 1 when a course has no sessions (no data = no penalty).
+  private async computePerStudentCourseAttendanceRates(
+    courseIds: string[],
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (courseIds.length === 0) return out;
+
+    const sessions = await this.prisma.courseSession.findMany({
+      where: { courseId: { in: courseIds }, cancelledAt: null },
+      select: { id: true, courseId: true },
+    });
+
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { courseId: { in: courseIds } },
+      select: { studentId: true, courseId: true },
+    });
+
+    const sessionIds = sessions.map((s) => s.id);
+    const attendances =
+      sessionIds.length === 0
+        ? []
+        : await this.prisma.attendance.findMany({
+            where: { courseSessionId: { in: sessionIds } },
+            select: { studentId: true, status: true, courseSessionId: true },
+          });
+
+    // Session count per course + reverse lookup sessionId → courseId
+    const sessionCountByCourse = new Map<string, number>();
+    const courseIdBySessionId = new Map<string, string>();
+    for (const s of sessions) {
+      sessionCountByCourse.set(
+        s.courseId,
+        (sessionCountByCourse.get(s.courseId) ?? 0) + 1,
+      );
+      courseIdBySessionId.set(s.id, s.courseId);
+    }
+
+    // Present/excused count per (student, course)
+    const presentCountByKey = new Map<string, number>();
+    for (const a of attendances) {
+      if (
+        a.status !== AttendanceStatus.PRESENT &&
+        a.status !== AttendanceStatus.EXCUSED
+      )
+        continue;
+      const courseId = courseIdBySessionId.get(a.courseSessionId);
+      if (!courseId) continue;
+      const key = `${a.studentId}::${courseId}`;
+      presentCountByKey.set(key, (presentCountByKey.get(key) ?? 0) + 1);
+    }
+
+    for (const e of enrollments) {
+      const key = `${e.studentId}::${e.courseId}`;
+      const total = sessionCountByCourse.get(e.courseId) ?? 0;
+      if (total === 0) {
+        out.set(key, 1);
+        continue;
+      }
+      const present = presentCountByKey.get(key) ?? 0;
+      out.set(key, present / total);
     }
 
     return out;

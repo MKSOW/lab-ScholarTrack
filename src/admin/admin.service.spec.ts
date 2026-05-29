@@ -3,11 +3,11 @@ import { AttendanceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminService } from './admin.service';
 
-// Minimal Prisma mock — only the methods AdminService.getSemesterStats touches.
+// Minimal Prisma mock — only the methods AdminService touches.
 type PrismaMock = {
   course: { count: jest.Mock; findMany: jest.Mock };
   enrollment: { count: jest.Mock; findMany: jest.Mock };
-  grade: { groupBy: jest.Mock };
+  grade: { groupBy: jest.Mock; findMany: jest.Mock };
   courseSession: { findMany: jest.Mock };
   attendance: { findMany: jest.Mock };
 };
@@ -15,7 +15,7 @@ type PrismaMock = {
 const makePrismaMock = (): PrismaMock => ({
   course: { count: jest.fn(), findMany: jest.fn() },
   enrollment: { count: jest.fn(), findMany: jest.fn() },
-  grade: { groupBy: jest.fn() },
+  grade: { groupBy: jest.fn(), findMany: jest.fn() },
   courseSession: { findMany: jest.fn() },
   attendance: { findMany: jest.fn() },
 });
@@ -408,6 +408,175 @@ describe('AdminService', () => {
       expect(typeof stats.threshold).toBe('number');
       expect(stats.threshold).toBeGreaterThan(0);
       expect(stats.threshold).toBeLessThanOrEqual(1);
+    });
+  });
+
+  describe('exportSemesterCsv', () => {
+    it('throws NotFoundException when semester has no courses', async () => {
+      prisma.course.findMany.mockResolvedValue([]);
+      await expect(service.exportSemesterCsv('2099-S1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('returns a CSV string whose first line is the expected header', async () => {
+      prisma.course.findMany.mockResolvedValue([
+        { id: 'c1', code: 'MATH101', name: 'Math', assessmentTypes: [] },
+      ]);
+      prisma.enrollment.findMany
+        .mockResolvedValueOnce([]) // exportSemesterCsv enrollments query
+        .mockResolvedValueOnce([]); // computePerStudentCourseAttendanceRates enrollments
+      prisma.grade.findMany.mockResolvedValue([]);
+      prisma.courseSession.findMany.mockResolvedValue([]);
+      prisma.attendance.findMany.mockResolvedValue([]);
+
+      const csv = await service.exportSemesterCsv('2026-S1');
+      const header = csv.split('\n')[0];
+      expect(header).toBe(
+        'studentId,studentName,studentEmail,courseCode,courseName,weightedAverage,isComplete,attendanceRate,atRisk',
+      );
+    });
+
+    it('computes the weighted average correctly when grades cover all weights', async () => {
+      // Course with two assessment types: CC 40%, EXAM 60%
+      prisma.course.findMany.mockResolvedValue([
+        {
+          id: 'c1',
+          code: 'MATH101',
+          name: 'Math',
+          assessmentTypes: [
+            { id: 'at-cc', weight: '40' },
+            { id: 'at-exam', weight: '60' },
+          ],
+        },
+      ]);
+      // One enrolled student
+      prisma.enrollment.findMany
+        .mockResolvedValueOnce([
+          {
+            studentId: 'st-1',
+            courseId: 'c1',
+            student: { id: 'st-1', name: 'Alice', email: 'alice@test.com' },
+          },
+        ])
+        .mockResolvedValueOnce([{ studentId: 'st-1', courseId: 'c1' }]);
+      // CC = 10, EXAM = 15 → (10*40/100 + 15*60/100) / 1 → weightedSum=4+9=13 coveredWeight=100
+      // average = (13/100)*100 = 13.00
+      prisma.grade.findMany.mockResolvedValue([
+        {
+          studentId: 'st-1',
+          courseId: 'c1',
+          assessmentTypeId: 'at-cc',
+          value: '10',
+        },
+        {
+          studentId: 'st-1',
+          courseId: 'c1',
+          assessmentTypeId: 'at-exam',
+          value: '15',
+        },
+      ]);
+      prisma.courseSession.findMany.mockResolvedValue([]);
+      prisma.attendance.findMany.mockResolvedValue([]);
+
+      const csv = await service.exportSemesterCsv('2026-S1');
+      const dataRow = csv.split('\n')[1];
+      const cols = dataRow.split(',');
+      // weightedAverage column (index 5)
+      expect(cols[5]).toBe('13.00');
+      // isComplete column (index 6) — both weights covered → 100
+      expect(cols[6]).toBe('true');
+    });
+
+    it('leaves weightedAverage empty and isComplete=false when no grades exist', async () => {
+      prisma.course.findMany.mockResolvedValue([
+        {
+          id: 'c1',
+          code: 'PHY101',
+          name: 'Physics',
+          assessmentTypes: [{ id: 'at-exam', weight: '100' }],
+        },
+      ]);
+      prisma.enrollment.findMany
+        .mockResolvedValueOnce([
+          {
+            studentId: 'st-1',
+            courseId: 'c1',
+            student: { id: 'st-1', name: 'Bob', email: 'bob@test.com' },
+          },
+        ])
+        .mockResolvedValueOnce([{ studentId: 'st-1', courseId: 'c1' }]);
+      prisma.grade.findMany.mockResolvedValue([]);
+      prisma.courseSession.findMany.mockResolvedValue([]);
+      prisma.attendance.findMany.mockResolvedValue([]);
+
+      const csv = await service.exportSemesterCsv('2026-S1');
+      const cols = csv.split('\n')[1].split(',');
+      expect(cols[5]).toBe(''); // weightedAverage
+      expect(cols[6]).toBe('false'); // isComplete
+    });
+
+    it('marks atRisk=true when attendance rate is below threshold', async () => {
+      prisma.course.findMany.mockResolvedValue([
+        {
+          id: 'c1',
+          code: 'BIO101',
+          name: 'Biology',
+          assessmentTypes: [],
+        },
+      ]);
+      prisma.enrollment.findMany
+        .mockResolvedValueOnce([
+          {
+            studentId: 'st-1',
+            courseId: 'c1',
+            student: { id: 'st-1', name: 'Carol', email: 'carol@test.com' },
+          },
+        ])
+        .mockResolvedValueOnce([{ studentId: 'st-1', courseId: 'c1' }]);
+      prisma.grade.findMany.mockResolvedValue([]);
+      // 2 sessions; student present for 0 → rate=0 → atRisk=true
+      prisma.courseSession.findMany.mockResolvedValue([
+        { id: 's1', courseId: 'c1' },
+        { id: 's2', courseId: 'c1' },
+      ]);
+      prisma.attendance.findMany.mockResolvedValue([]);
+
+      const csv = await service.exportSemesterCsv('2026-S1');
+      const cols = csv.split('\n')[1].split(',');
+      expect(cols[7]).toBe('0'); // attendanceRate
+      expect(cols[8]).toBe('true'); // atRisk
+    });
+
+    it('escapes commas in student names by wrapping the cell in double-quotes', async () => {
+      prisma.course.findMany.mockResolvedValue([
+        {
+          id: 'c1',
+          code: 'CS101',
+          name: 'Computer Science',
+          assessmentTypes: [],
+        },
+      ]);
+      prisma.enrollment.findMany
+        .mockResolvedValueOnce([
+          {
+            studentId: 'st-1',
+            courseId: 'c1',
+            student: {
+              id: 'st-1',
+              name: 'Doe, John',
+              email: 'doe@test.com',
+            },
+          },
+        ])
+        .mockResolvedValueOnce([{ studentId: 'st-1', courseId: 'c1' }]);
+      prisma.grade.findMany.mockResolvedValue([]);
+      prisma.courseSession.findMany.mockResolvedValue([]);
+      prisma.attendance.findMany.mockResolvedValue([]);
+
+      const csv = await service.exportSemesterCsv('2026-S1');
+      // The name contains a comma so it must be quoted
+      expect(csv).toContain('"Doe, John"');
     });
   });
 });
