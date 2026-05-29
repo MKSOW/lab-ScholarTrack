@@ -1,4 +1,8 @@
-import { NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { AttendanceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminService } from './admin.service';
@@ -6,18 +10,22 @@ import { AdminService } from './admin.service';
 // Minimal Prisma mock — only the methods AdminService touches.
 type PrismaMock = {
   course: { count: jest.Mock; findMany: jest.Mock };
-  enrollment: { count: jest.Mock; findMany: jest.Mock };
+  enrollment: { count: jest.Mock; findMany: jest.Mock; create: jest.Mock };
   grade: { groupBy: jest.Mock; findMany: jest.Mock };
   courseSession: { findMany: jest.Mock };
   attendance: { findMany: jest.Mock };
+  user: { findMany: jest.Mock };
+  $transaction: jest.Mock;
 };
 
 const makePrismaMock = (): PrismaMock => ({
   course: { count: jest.fn(), findMany: jest.fn() },
-  enrollment: { count: jest.fn(), findMany: jest.fn() },
+  enrollment: { count: jest.fn(), findMany: jest.fn(), create: jest.fn() },
   grade: { groupBy: jest.fn(), findMany: jest.fn() },
   courseSession: { findMany: jest.fn() },
   attendance: { findMany: jest.fn() },
+  user: { findMany: jest.fn() },
+  $transaction: jest.fn(),
 });
 
 describe('AdminService', () => {
@@ -577,6 +585,166 @@ describe('AdminService', () => {
       const csv = await service.exportSemesterCsv('2026-S1');
       // The name contains a comma so it must be quoted
       expect(csv).toContain('"Doe, John"');
+    });
+  });
+
+  describe('importEnrollmentsFromCsv', () => {
+    // Helper to create a fake Multer file from a CSV string
+    const makeCsvFile = (content: string): Express.Multer.File =>
+      ({
+        buffer: Buffer.from(content, 'utf-8'),
+        mimetype: 'text/csv',
+        originalname: 'enrollments.csv',
+      }) as Express.Multer.File;
+
+    it('throws BadRequestException when the file is empty', async () => {
+      await expect(
+        service.importEnrollmentsFromCsv(makeCsvFile('')),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the CSV header is invalid', async () => {
+      await expect(
+        service.importEnrollmentsFromCsv(
+          makeCsvFile('student,course\nst-1,c1'),
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws UnprocessableEntityException when a studentId is missing', async () => {
+      // Pre-load: course exists, student pre-load doesn't matter
+      prisma.course.findMany.mockResolvedValue([
+        { id: 'c1', code: 'MATH101', capacity: 30, _count: { enrollments: 0 } },
+      ]);
+      prisma.user.findMany.mockResolvedValue([]);
+      prisma.enrollment.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.importEnrollmentsFromCsv(
+          makeCsvFile('studentId,courseId\n,c1'),
+        ),
+      ).rejects.toThrow(UnprocessableEntityException);
+    });
+
+    it('throws UnprocessableEntityException when a course does not exist', async () => {
+      prisma.course.findMany.mockResolvedValue([]); // no courses found
+      prisma.user.findMany.mockResolvedValue([{ id: 'st-1' }]);
+      prisma.enrollment.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.importEnrollmentsFromCsv(
+          makeCsvFile('studentId,courseId\nst-1,unknown-course'),
+        ),
+      ).rejects.toThrow(UnprocessableEntityException);
+    });
+
+    it('throws UnprocessableEntityException when a student does not exist or is not STUDENT', async () => {
+      prisma.course.findMany.mockResolvedValue([
+        { id: 'c1', code: 'MATH101', capacity: 30, _count: { enrollments: 0 } },
+      ]);
+      prisma.user.findMany.mockResolvedValue([]); // student not found with role STUDENT
+      prisma.enrollment.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.importEnrollmentsFromCsv(
+          makeCsvFile('studentId,courseId\nst-ghost,c1'),
+        ),
+      ).rejects.toThrow(UnprocessableEntityException);
+    });
+
+    it('throws UnprocessableEntityException when a student is already enrolled', async () => {
+      prisma.course.findMany.mockResolvedValue([
+        { id: 'c1', code: 'MATH101', capacity: 30, _count: { enrollments: 1 } },
+      ]);
+      prisma.user.findMany.mockResolvedValue([{ id: 'st-1' }]);
+      prisma.enrollment.findMany.mockResolvedValue([
+        { studentId: 'st-1', courseId: 'c1' }, // already enrolled
+      ]);
+
+      await expect(
+        service.importEnrollmentsFromCsv(
+          makeCsvFile('studentId,courseId\nst-1,c1'),
+        ),
+      ).rejects.toThrow(UnprocessableEntityException);
+    });
+
+    it('throws UnprocessableEntityException for a CSV-level duplicate pair', async () => {
+      prisma.course.findMany.mockResolvedValue([
+        { id: 'c1', code: 'MATH101', capacity: 30, _count: { enrollments: 0 } },
+      ]);
+      prisma.user.findMany.mockResolvedValue([{ id: 'st-1' }]);
+      prisma.enrollment.findMany.mockResolvedValue([]);
+
+      // Same pair twice in the file
+      await expect(
+        service.importEnrollmentsFromCsv(
+          makeCsvFile('studentId,courseId\nst-1,c1\nst-1,c1'),
+        ),
+      ).rejects.toThrow(UnprocessableEntityException);
+    });
+
+    it('throws UnprocessableEntityException when the import would exceed course capacity', async () => {
+      prisma.course.findMany.mockResolvedValue([
+        // capacity=1, already 1 enrolled → 0 slots left
+        { id: 'c1', code: 'MATH101', capacity: 1, _count: { enrollments: 1 } },
+      ]);
+      prisma.user.findMany.mockResolvedValue([{ id: 'st-1' }]);
+      prisma.enrollment.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.importEnrollmentsFromCsv(
+          makeCsvFile('studentId,courseId\nst-1,c1'),
+        ),
+      ).rejects.toThrow(UnprocessableEntityException);
+    });
+
+    it('inserts all valid rows and returns the correct summary on success', async () => {
+      prisma.course.findMany.mockResolvedValue([
+        { id: 'c1', code: 'MATH101', capacity: 10, _count: { enrollments: 0 } },
+        { id: 'c2', code: 'PHY101', capacity: 10, _count: { enrollments: 2 } },
+      ]);
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'st-1' },
+        { id: 'st-2' },
+        { id: 'st-3' },
+      ]);
+      prisma.enrollment.findMany.mockResolvedValue([]);
+      prisma.$transaction.mockResolvedValue([]);
+
+      const result = await service.importEnrollmentsFromCsv(
+        makeCsvFile('studentId,courseId\nst-1,c1\nst-2,c1\nst-3,c2'),
+      );
+
+      expect(result.imported).toBe(3);
+      const mathSummary = result.summary.find(
+        (s) => s.courseCode === 'MATH101',
+      );
+      const phySummary = result.summary.find((s) => s.courseCode === 'PHY101');
+      expect(mathSummary?.enrolled).toBe(2);
+      expect(phySummary?.enrolled).toBe(1);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('error report contains all row-level errors before stopping', async () => {
+      prisma.course.findMany.mockResolvedValue([
+        { id: 'c1', code: 'MATH101', capacity: 10, _count: { enrollments: 0 } },
+      ]);
+      prisma.user.findMany.mockResolvedValue([]); // no valid students
+      prisma.enrollment.findMany.mockResolvedValue([]);
+
+      // Both rows should produce errors (student not found)
+      try {
+        await service.importEnrollmentsFromCsv(
+          makeCsvFile('studentId,courseId\nst-1,c1\nst-2,c1'),
+        );
+        fail('Expected UnprocessableEntityException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(UnprocessableEntityException);
+        const body = (err as UnprocessableEntityException).getResponse() as {
+          errors: unknown[];
+        };
+        expect(body.errors).toHaveLength(2);
+      }
     });
   });
 });

@@ -1,5 +1,19 @@
-import { Controller, Get, Param, Res } from '@nestjs/common';
 import {
+  BadRequestException,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiProduces,
   ApiResponse,
@@ -14,6 +28,47 @@ import { AdminService } from './admin.service';
 @Controller('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
+
+  @Post('import/enrollments')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Fichier CSV — colonnes : studentId,courseId',
+        },
+      },
+    },
+  })
+  @ApiOperation({
+    summary: "Import CSV d'inscriptions en masse (admin)",
+    description:
+      "Tout-ou-rien : toutes les lignes sont validées (étudiant existant, cours existant, pas de doublon, capacité disponible) avant toute insertion. Si une ligne est invalide, l'import entier est annulé avec un rapport d'erreurs complet.\n\nRBAC: ADMIN uniquement.",
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Import réussi — { imported, summary }',
+  })
+  @ApiResponse({
+    status: 422,
+    description:
+      'Erreurs de validation — rapport complet, aucune insertion effectuée',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Fichier manquant ou CSV mal formé',
+  })
+  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  importEnrollments(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Aucun fichier reçu');
+    return this.adminService.importEnrollmentsFromCsv(file);
+  }
 
   @Get('stats/semester/:semester')
   @Roles(Role.ADMIN)

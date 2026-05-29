@@ -1,7 +1,14 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { AttendanceStatus } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { AttendanceStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildCsvRow } from './utils/csv-export';
+import { parseEnrollmentCsvBuffer } from './utils/csv-enrollment-parser';
 
 // Attendance rate threshold below which a student is flagged "atRisk".
 // Same source of truth as AttendanceService — kept in env so the policy stays consistent.
@@ -228,6 +235,196 @@ export class AdminService {
     }
 
     return out;
+  }
+
+  // Bulk enrollment import — all-or-nothing: if any row fails validation or would
+  // exceed course capacity, the entire import is rejected with a full error report.
+  // CSV format (header required): studentId,courseId
+  async importEnrollmentsFromCsv(file: Express.Multer.File): Promise<{
+    imported: number;
+    summary: { courseId: string; courseCode: string; enrolled: number }[];
+  }> {
+    const { rows, parseError } = parseEnrollmentCsvBuffer(file.buffer);
+    if (parseError) throw new BadRequestException(parseError);
+    if (rows.length === 0) {
+      throw new BadRequestException(
+        'Le fichier CSV ne contient aucune ligne de données',
+      );
+    }
+
+    // Pre-load all referenced entities in 3 parallel queries (no N+1)
+    const uniqueCourseIds = [
+      ...new Set(rows.map((r) => r.courseId).filter(Boolean)),
+    ];
+    const uniqueStudentIds = [
+      ...new Set(rows.map((r) => r.studentId).filter(Boolean)),
+    ];
+
+    const [courses, students, existingEnrollments] = await Promise.all([
+      this.prisma.course.findMany({
+        where: { id: { in: uniqueCourseIds } },
+        select: {
+          id: true,
+          code: true,
+          capacity: true,
+          _count: { select: { enrollments: true } },
+        },
+      }),
+      this.prisma.user.findMany({
+        where: { id: { in: uniqueStudentIds }, role: Role.STUDENT },
+        select: { id: true },
+      }),
+      this.prisma.enrollment.findMany({
+        where: {
+          studentId: { in: uniqueStudentIds },
+          courseId: { in: uniqueCourseIds },
+        },
+        select: { studentId: true, courseId: true },
+      }),
+    ]);
+
+    const courseMap = new Map(courses.map((c) => [c.id, c]));
+    const studentIdSet = new Set(students.map((s) => s.id));
+    const enrolledPairs = new Set(
+      existingEnrollments.map((e) => `${e.studentId}::${e.courseId}`),
+    );
+    const seenInFile = new Set<string>();
+
+    type ImportError = {
+      row: number;
+      error: string;
+      data: Record<string, string>;
+    };
+    const errors: ImportError[] = [];
+    const validRows: typeof rows = [];
+
+    for (const row of rows) {
+      const data = { studentId: row.studentId, courseId: row.courseId };
+
+      if (!row.studentId) {
+        errors.push({
+          row: row.rowNumber,
+          error: 'Le champ studentId est requis',
+          data,
+        });
+        continue;
+      }
+      if (!row.courseId) {
+        errors.push({
+          row: row.rowNumber,
+          error: 'Le champ courseId est requis',
+          data,
+        });
+        continue;
+      }
+      if (!courseMap.has(row.courseId)) {
+        errors.push({
+          row: row.rowNumber,
+          error: `Cours "${row.courseId}" introuvable`,
+          data,
+        });
+        continue;
+      }
+      if (!studentIdSet.has(row.studentId)) {
+        errors.push({
+          row: row.rowNumber,
+          error: `Étudiant "${row.studentId}" introuvable ou n'a pas le rôle STUDENT`,
+          data,
+        });
+        continue;
+      }
+      if (enrolledPairs.has(`${row.studentId}::${row.courseId}`)) {
+        const code = courseMap.get(row.courseId)!.code;
+        errors.push({
+          row: row.rowNumber,
+          error: `L'étudiant "${row.studentId}" est déjà inscrit au cours "${code}"`,
+          data,
+        });
+        continue;
+      }
+
+      const compositeKey = `${row.studentId}::${row.courseId}`;
+      if (seenInFile.has(compositeKey)) {
+        errors.push({
+          row: row.rowNumber,
+          error: `Doublon dans le fichier CSV : même étudiant et même cours déjà présents`,
+          data,
+        });
+        continue;
+      }
+
+      seenInFile.add(compositeKey);
+      validRows.push(row);
+    }
+
+    // Capacity check — grouped by course so the whole batch is evaluated at once
+    const newCountByCourse = new Map<string, number>();
+    for (const row of validRows) {
+      newCountByCourse.set(
+        row.courseId,
+        (newCountByCourse.get(row.courseId) ?? 0) + 1,
+      );
+    }
+    for (const [courseId, newCount] of newCountByCourse) {
+      const course = courseMap.get(courseId)!;
+      const available = course.capacity - course._count.enrollments;
+      if (newCount > available) {
+        const affected = validRows.filter((r) => r.courseId === courseId);
+        for (const row of affected) {
+          errors.push({
+            row: row.rowNumber,
+            error: `Cours "${course.code}" : capacité insuffisante — ${available} place(s) disponible(s), ${newCount} demandée(s)`,
+            data: { studentId: row.studentId, courseId: row.courseId },
+          });
+        }
+      }
+    }
+
+    // All-or-nothing: any error aborts the whole import
+    if (errors.length > 0) {
+      throw new UnprocessableEntityException({
+        message: `Import annulé : ${errors.length} erreur(s) détectée(s)`,
+        errors,
+      });
+    }
+
+    // All rows are valid — insert in a single transaction
+    await this.prisma.$transaction(
+      validRows.map((row) =>
+        this.prisma.enrollment.create({
+          data: { studentId: row.studentId, courseId: row.courseId },
+        }),
+      ),
+    );
+
+    // Build per-course summary
+    const summaryMap = new Map<
+      string,
+      { courseCode: string; enrolled: number }
+    >();
+    for (const row of validRows) {
+      const course = courseMap.get(row.courseId)!;
+      const entry = summaryMap.get(row.courseId) ?? {
+        courseCode: course.code,
+        enrolled: 0,
+      };
+      entry.enrolled++;
+      summaryMap.set(row.courseId, entry);
+    }
+
+    const summary = [...summaryMap.entries()].map(
+      ([courseId, { courseCode, enrolled }]) => ({
+        courseId,
+        courseCode,
+        enrolled,
+      }),
+    );
+
+    this.logger.log(
+      `Enrollment CSV import: ${validRows.length} enrollment(s) created across ${summary.length} course(s)`,
+    );
+
+    return { imported: validRows.length, summary };
   }
 
   // CSV export — one row per (student, course) enrollment for the semester.
