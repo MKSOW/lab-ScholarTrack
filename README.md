@@ -57,6 +57,78 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## API — Admin & Reporting
+
+All routes below are mounted under the `admin` controller and protected by the
+`@Roles(Role.ADMIN)` guard: **only an authenticated `ADMIN` may call them**.
+Any other role receives `403 Forbidden`. They are also documented in Swagger
+under the `admin` tag (`GET /api` once the app is running).
+
+### `POST /admin/import/enrollments` — bulk enrollment import
+
+Imports student enrollments from a CSV file, **all-or-nothing**.
+
+- **Body**: `multipart/form-data`, field `file` (the CSV).
+- **CSV format** (header required): `studentId,courseId`
+  ```csv
+  studentId,courseId
+  ckstud001,ckcourse001
+  ckstud002,ckcourse001
+  ```
+- **Validation** (every row is checked before any insert): the student exists
+  and has the `STUDENT` role, the course exists, the student is not already
+  enrolled, no duplicate row inside the file, and the course capacity is not
+  exceeded.
+- **Transaction**: a single `$transaction` inserts every valid row. If **any**
+  row is invalid, nothing is inserted.
+
+| Status | Meaning |
+| ------ | ------- |
+| `201`  | Success — body `{ imported: number, summary: [{ courseId, courseCode, enrolled }] }` |
+| `422`  | Validation failed — full error report, **no row inserted** |
+| `400`  | File missing or malformed CSV (bad header / empty file) |
+| `403`  | Caller is not `ADMIN` |
+
+### `GET /admin/export/semester/:semester` — semester results CSV export
+
+Downloads a CSV file with **one row per enrolled student per course** for the
+given semester (e.g. `2026-S1`).
+
+- **Produces**: `text/csv` (sent as an attachment `semester-<semester>-results.csv`).
+- **Columns**: `studentId, studentName, studentEmail, courseCode, courseName,
+  weightedAverage, isComplete, attendanceRate, atRisk`
+  - `weightedAverage` — weighted average over the assessment types covered so
+    far (empty when no grade exists yet).
+  - `isComplete` — `true` only when assessment weights covered reach 100%.
+  - `attendanceRate` — between `0` and `1` (defaults to `1` when the course has
+    no sessions).
+  - `atRisk` — `true` when `attendanceRate` is below the
+    `ATTENDANCE_AT_RISK_THRESHOLD` (default `0.75`).
+
+| Status | Meaning |
+| ------ | ------- |
+| `200`  | CSV file returned |
+| `404`  | No course found for this semester |
+| `403`  | Caller is not `ADMIN` |
+
+### `GET /admin/stats/semester/:semester` — aggregated semester statistics
+
+Returns global KPIs for a semester, computed with **Prisma aggregations**
+(`groupBy`, `_avg`, `count`) to keep the work in the database.
+
+- **Response** (`200`): course count, unique student count, total enrollments,
+  per-course averages and attendance rates, global at-risk count, global
+  attendance rate, and the configured `threshold`.
+
+| Status | Meaning |
+| ------ | ------- |
+| `200`  | Aggregated statistics object |
+| `404`  | No course found for this semester |
+| `403`  | Caller is not `ADMIN` |
+
+> **Config**: `ATTENDANCE_AT_RISK_THRESHOLD` (env, default `0.75`) is the
+> attendance rate below which a student is flagged `atRisk`.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
