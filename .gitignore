@@ -58,3 +58,4 @@ pnpm-lock.yaml
 .env
 CLAUDE.md
 /generated/prisma
+/dist

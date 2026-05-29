@@ -1,1 +1,0 @@
-{"version":3,"file":"enroll-student.dto.js","sourceRoot":"","sources":["../../../src/courses/dto/enroll-student.dto.ts"],"names":[],"mappings":";;;;;;;;;;;;AAAA,6CAA8C;AAC9C,qDAAuD;AAEvD,MAAa,gBAAgB;IAO3B,SAAS,CAAS;CACnB;AARD,4CAQC;AADC;IANC,IAAA,qBAAW,EAAC;QACX,OAAO,EAAE,gBAAgB;QACzB,WAAW,EAAE,sCAAsC;KACpD,CAAC;IACD,IAAA,0BAAQ,GAAE;IACV,IAAA,4BAAU,GAAE;;mDACK"}
