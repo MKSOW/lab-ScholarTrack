@@ -39,7 +39,6 @@ export function parseCsvBuffer(buffer: Buffer): CsvParseResult {
 
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (!line) continue;
 
     // On split en max 4 parties pour que la colonne comment puisse contenir des virgules
     const parts = line.split(',');

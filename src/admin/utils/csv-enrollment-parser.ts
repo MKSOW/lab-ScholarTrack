@@ -36,7 +36,6 @@ export function parseEnrollmentCsvBuffer(
   const rows: CsvEnrollmentRow[] = [];
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (!line) continue;
     const parts = line.split(',');
     rows.push({
       rowNumber: i + 1,
