@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module';
 import { CoursesModule } from './courses/courses.module';
 import { GradesModule } from './grades/grades.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { AdminModule } from './admin/admin.module';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { auth } from './auth/auth';
 
@@ -22,6 +23,7 @@ import { auth } from './auth/auth';
     CoursesModule,
     GradesModule,
     AttendanceModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [

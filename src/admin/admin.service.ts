@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { AttendanceStatus, Prisma } from '@prisma/client';
+import { AttendanceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 // Attendance rate threshold below which a student is flagged "atRisk".
@@ -229,7 +229,3 @@ export class AdminService {
     return out;
   }
 }
-
-// Silences unused-import warning if Prisma types aren't directly referenced.
-// (Prisma namespace stays available for future typings on this service.)
-export type _AdminPrismaNs = Prisma.BatchPayload;
