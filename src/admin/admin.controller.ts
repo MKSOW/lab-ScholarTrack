@@ -41,32 +41,31 @@ export class AdminController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Fichier CSV — colonnes : studentId,courseId',
+          description: 'CSV file — columns: studentId,courseId',
         },
       },
     },
   })
   @ApiOperation({
-    summary: "Import CSV d'inscriptions en masse (admin)",
+    summary: 'Bulk enrollment CSV import (admin)',
     description:
-      "Tout-ou-rien : toutes les lignes sont validées (étudiant existant, cours existant, pas de doublon, capacité disponible) avant toute insertion. Si une ligne est invalide, l'import entier est annulé avec un rapport d'erreurs complet.\n\nRBAC: ADMIN uniquement.",
+      'All-or-nothing: every row is validated (student exists, course exists, no duplicate, capacity available) before any insert. If a single row is invalid, the whole import is rolled back with a full error report.\n\nRBAC: ADMIN only.',
   })
   @ApiResponse({
     status: 201,
-    description: 'Import réussi — { imported, summary }',
+    description: 'Import successful — { imported, summary }',
   })
   @ApiResponse({
     status: 422,
-    description:
-      'Erreurs de validation — rapport complet, aucune insertion effectuée',
+    description: 'Validation errors — full report, no insert performed',
   })
   @ApiResponse({
     status: 400,
-    description: 'Fichier manquant ou CSV mal formé',
+    description: 'File missing or malformed CSV',
   })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
   importEnrollments(@UploadedFile() file: Express.Multer.File) {
-    if (!file) throw new BadRequestException('Aucun fichier reçu');
+    if (!file) throw new BadRequestException('No file received');
     return this.adminService.importEnrollmentsFromCsv(file);
   }
 

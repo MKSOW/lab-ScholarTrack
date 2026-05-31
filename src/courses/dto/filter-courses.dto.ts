@@ -2,13 +2,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
-// DTO des query params de GET /courses.
-// Les query params arrivent toujours en chaîne de caractères :
-// @Type(() => Number) les convertit en nombre (le ValidationPipe a transform: true).
+// DTO for the GET /courses query params.
+// Query params always arrive as strings:
+// @Type(() => Number) converts them to numbers (the ValidationPipe has transform: true).
 export class FilterCoursesDto {
   @ApiPropertyOptional({
     example: '2025-S1',
-    description: 'Filtrer par semestre',
+    description: 'Filter by semester',
   })
   @IsString()
   @IsOptional()
@@ -16,7 +16,7 @@ export class FilterCoursesDto {
 
   @ApiPropertyOptional({
     example: 'clxxxteacherid',
-    description: 'Filtrer par enseignant (admin uniquement)',
+    description: 'Filter by teacher (admin only)',
   })
   @IsString()
   @IsOptional()
@@ -24,7 +24,7 @@ export class FilterCoursesDto {
 
   @ApiPropertyOptional({
     example: 1,
-    description: 'Numéro de page (défaut : 1)',
+    description: 'Page number (default: 1)',
   })
   @Type(() => Number)
   @IsInt()
@@ -34,7 +34,7 @@ export class FilterCoursesDto {
 
   @ApiPropertyOptional({
     example: 10,
-    description: "Nombre d'éléments par page (défaut : 10, max : 100)",
+    description: 'Items per page (default: 10, max: 100)',
   })
   @Type(() => Number)
   @IsInt()

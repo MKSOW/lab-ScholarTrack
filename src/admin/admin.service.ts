@@ -16,6 +16,11 @@ const AT_RISK_THRESHOLD = Number(
   process.env.ATTENDANCE_AT_RISK_THRESHOLD ?? 0.75,
 );
 
+/**
+ * Admin reporting & bulk operations: aggregated semester statistics (Prisma
+ * aggregations), all-or-nothing bulk enrollment CSV import, and semester
+ * results CSV export. All persistence goes through the injected PrismaService.
+ */
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
@@ -247,9 +252,7 @@ export class AdminService {
     const { rows, parseError } = parseEnrollmentCsvBuffer(file.buffer);
     if (parseError) throw new BadRequestException(parseError);
     if (rows.length === 0) {
-      throw new BadRequestException(
-        'Le fichier CSV ne contient aucune ligne de données',
-      );
+      throw new BadRequestException('The CSV file contains no data rows');
     }
 
     // Pre-load all referenced entities in 3 parallel queries (no N+1)
@@ -304,7 +307,7 @@ export class AdminService {
       if (!row.studentId) {
         errors.push({
           row: row.rowNumber,
-          error: 'Le champ studentId est requis',
+          error: 'The studentId field is required',
           data,
         });
         continue;
@@ -312,7 +315,7 @@ export class AdminService {
       if (!row.courseId) {
         errors.push({
           row: row.rowNumber,
-          error: 'Le champ courseId est requis',
+          error: 'The courseId field is required',
           data,
         });
         continue;
@@ -320,7 +323,7 @@ export class AdminService {
       if (!courseMap.has(row.courseId)) {
         errors.push({
           row: row.rowNumber,
-          error: `Cours "${row.courseId}" introuvable`,
+          error: `Course "${row.courseId}" not found`,
           data,
         });
         continue;
@@ -328,7 +331,7 @@ export class AdminService {
       if (!studentIdSet.has(row.studentId)) {
         errors.push({
           row: row.rowNumber,
-          error: `Étudiant "${row.studentId}" introuvable ou n'a pas le rôle STUDENT`,
+          error: `Student "${row.studentId}" not found or does not have the STUDENT role`,
           data,
         });
         continue;
@@ -337,7 +340,7 @@ export class AdminService {
         const code = courseMap.get(row.courseId)!.code;
         errors.push({
           row: row.rowNumber,
-          error: `L'étudiant "${row.studentId}" est déjà inscrit au cours "${code}"`,
+          error: `Student "${row.studentId}" is already enrolled in course "${code}"`,
           data,
         });
         continue;
@@ -347,7 +350,7 @@ export class AdminService {
       if (seenInFile.has(compositeKey)) {
         errors.push({
           row: row.rowNumber,
-          error: `Doublon dans le fichier CSV : même étudiant et même cours déjà présents`,
+          error: `Duplicate in the CSV file: same student and same course already present`,
           data,
         });
         continue;
@@ -373,7 +376,7 @@ export class AdminService {
         for (const row of affected) {
           errors.push({
             row: row.rowNumber,
-            error: `Cours "${course.code}" : capacité insuffisante — ${available} place(s) disponible(s), ${newCount} demandée(s)`,
+            error: `Course "${course.code}": insufficient capacity — ${available} seat(s) available, ${newCount} requested`,
             data: { studentId: row.studentId, courseId: row.courseId },
           });
         }
@@ -383,7 +386,7 @@ export class AdminService {
     // All-or-nothing: any error aborts the whole import
     if (errors.length > 0) {
       throw new UnprocessableEntityException({
-        message: `Import annulé : ${errors.length} erreur(s) détectée(s)`,
+        message: `Import cancelled: ${errors.length} error(s) detected`,
         errors,
       });
     }

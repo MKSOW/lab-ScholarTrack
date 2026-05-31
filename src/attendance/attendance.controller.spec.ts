@@ -30,18 +30,18 @@ describe('AttendanceController', () => {
     );
   });
 
-  it('délègue createSession() avec le user', async () => {
+  it('delegates createSession() with the user', async () => {
     const dto = { courseId: 'c-1', date: '2026-01-01' } as never;
     await expect(controller.createSession(dto, REQ)).resolves.toBe(RESULT);
     expect(service.createSession).toHaveBeenCalledWith(dto, REQ.user);
   });
 
-  it('délègue findSessionsByCourse()', async () => {
+  it('delegates findSessionsByCourse()', async () => {
     await controller.findSessionsByCourse('c-1', REQ);
     expect(service.findSessionsByCourse).toHaveBeenCalledWith('c-1', REQ.user);
   });
 
-  it('délègue recordAttendances()', async () => {
+  it('delegates recordAttendances()', async () => {
     const dto = { records: [] } as never;
     await controller.recordAttendances('sess-1', dto, REQ);
     expect(service.recordAttendances).toHaveBeenCalledWith(
@@ -51,12 +51,12 @@ describe('AttendanceController', () => {
     );
   });
 
-  it('délègue cancelSession()', async () => {
+  it('delegates cancelSession()', async () => {
     await controller.cancelSession('sess-1', REQ);
     expect(service.cancelSession).toHaveBeenCalledWith('sess-1', REQ.user);
   });
 
-  it('délègue getCourseStats() en réordonnant (courseId, user, filter)', async () => {
+  it('delegates getCourseStats() reordering (courseId, user, filter)', async () => {
     const filter = { atRisk: true } as never;
     await controller.getCourseStats('c-1', filter, REQ);
     expect(service.computeCourseAttendanceStats).toHaveBeenCalledWith(
@@ -66,7 +66,7 @@ describe('AttendanceController', () => {
     );
   });
 
-  it('délègue getStudentStats() en réordonnant (studentId, courseId, user)', async () => {
+  it('delegates getStudentStats() reordering (studentId, courseId, user)', async () => {
     await controller.getStudentStats('c-1', 's-1', REQ);
     expect(service.computeAttendanceStats).toHaveBeenCalledWith(
       's-1',

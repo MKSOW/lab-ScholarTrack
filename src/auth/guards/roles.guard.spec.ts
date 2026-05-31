@@ -14,7 +14,7 @@ describe('RolesGuard', () => {
     guard = new RolesGuard(reflector);
   });
 
-  it('laisse passer si aucun rôle requis', () => {
+  it('allows access when no role is required', () => {
     reflector.getAllAndOverride.mockReturnValue(undefined);
     const ctx = {
       getHandler: jest.fn(),
@@ -27,7 +27,7 @@ describe('RolesGuard', () => {
     expect(guard.canActivate(ctx)).toBe(true);
   });
 
-  it('laisse passer si le rôle correspond', () => {
+  it('allows access when the role matches', () => {
     reflector.getAllAndOverride.mockReturnValue([Role.ADMIN]);
     const ctx = {
       getHandler: jest.fn(),
@@ -40,7 +40,7 @@ describe('RolesGuard', () => {
     expect(guard.canActivate(ctx)).toBe(true);
   });
 
-  it('laisse passer si un des rôles multiples correspond', () => {
+  it('allows access when one of multiple roles matches', () => {
     reflector.getAllAndOverride.mockReturnValue([Role.ADMIN, Role.TEACHER]);
     const ctx = {
       getHandler: jest.fn(),
@@ -53,7 +53,7 @@ describe('RolesGuard', () => {
     expect(guard.canActivate(ctx)).toBe(true);
   });
 
-  it('lève ForbiddenException si le rôle est insuffisant', () => {
+  it('throws ForbiddenException when the role is insufficient', () => {
     reflector.getAllAndOverride.mockReturnValue([Role.ADMIN]);
     const ctx = {
       getHandler: jest.fn(),
@@ -66,7 +66,7 @@ describe('RolesGuard', () => {
     expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
   });
 
-  it('lève ForbiddenException si aucun user dans la requête', () => {
+  it('throws ForbiddenException when there is no user in the request', () => {
     reflector.getAllAndOverride.mockReturnValue([Role.ADMIN]);
     const ctx = {
       getHandler: jest.fn(),

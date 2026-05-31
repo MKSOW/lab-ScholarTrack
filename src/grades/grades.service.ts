@@ -14,42 +14,51 @@ import { parseCsvBuffer } from './utils/csv-parser';
 
 export type GradeUser = { id: string; role: Role };
 
+/**
+ * Grade business logic: single grade entry, weighted average computation,
+ * per-student / per-course listings with RBAC, and the all-or-nothing CSV
+ * bulk import. All persistence goes through the injected PrismaService.
+ */
 @Injectable()
 export class GradesService {
   private readonly logger = new Logger(GradesService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Records a single grade after enforcing course existence, teacher ownership,
+   * student enrollment, assessment-type membership and uniqueness.
+   */
   async create(dto: CreateGradeDto, requestingUser: GradeUser) {
-    // 1. Le cours doit exister
+    // 1. The course must exist
     const course = await this.prisma.course.findUnique({
       where: { id: dto.courseId },
       select: { id: true, code: true, teacherId: true },
     });
-    if (!course) throw new NotFoundException('Cours introuvable');
+    if (!course) throw new NotFoundException('Course not found');
 
-    // 2. Un TEACHER ne peut saisir des notes que pour ses propres cours
+    // 2. A TEACHER may only record grades for their own courses
     if (
       requestingUser.role === Role.TEACHER &&
       course.teacherId !== requestingUser.id
     ) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 
-    // 3. L'étudiant doit exister et avoir le rôle STUDENT
+    // 3. The student must exist and have the STUDENT role
     const student = await this.prisma.user.findUnique({
       where: { id: dto.studentId },
       select: { id: true, role: true, name: true },
     });
     if (!student || student.role !== Role.STUDENT) {
       throw new NotFoundException(
-        `Aucun étudiant trouvé avec l'identifiant "${dto.studentId}"`,
+        `No student found with id "${dto.studentId}"`,
       );
     }
 
-    // 4. L'étudiant doit être inscrit au cours
+    // 4. The student must be enrolled in the course
     const enrollment = await this.prisma.enrollment.findUnique({
       where: {
         studentId_courseId: {
@@ -60,21 +69,21 @@ export class GradesService {
     });
     if (!enrollment) {
       throw new BadRequestException(
-        `L'étudiant "${student.name}" n'est pas inscrit au cours "${course.code}"`,
+        `Student "${student.name}" is not enrolled in course "${course.code}"`,
       );
     }
 
-    // 5. Le type d'évaluation doit appartenir au cours
+    // 5. The assessment type must belong to the course
     const assessmentType = await this.prisma.assessmentType.findFirst({
       where: { id: dto.assessmentTypeId, courseId: dto.courseId },
     });
     if (!assessmentType) {
       throw new NotFoundException(
-        `Type d'évaluation introuvable ou n'appartient pas au cours "${course.code}"`,
+        `Assessment type not found or does not belong to course "${course.code}"`,
       );
     }
 
-    // 6. Une note existe déjà pour cette combinaison étudiant / cours / type d'évaluation
+    // 6. A grade already exists for this student / course / assessment-type combination
     const existing = await this.prisma.grade.findFirst({
       where: {
         studentId: dto.studentId,
@@ -84,7 +93,7 @@ export class GradesService {
     });
     if (existing) {
       throw new ConflictException(
-        `Une note existe déjà pour "${student.name}" — type "${assessmentType.name}"`,
+        `A grade already exists for "${student.name}" — type "${assessmentType.name}"`,
       );
     }
 
@@ -104,25 +113,25 @@ export class GradesService {
     });
 
     this.logger.log(
-      `Note saisie : ${student.name} — ${assessmentType.name} — ${dto.value}/20 (cours ${course.code})`,
+      `Grade recorded: ${student.name} — ${assessmentType.name} — ${dto.value}/20 (course ${course.code})`,
     );
     return grade;
   }
 
-  // Toutes les notes d'un cours, accessibles au Teacher propriétaire et à l'Admin
+  // All grades of a course, accessible to the owning Teacher and the Admin
   async findByCourse(courseId: string, requestingUser: GradeUser) {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       select: { id: true, teacherId: true, code: true },
     });
-    if (!course) throw new NotFoundException('Cours introuvable');
+    if (!course) throw new NotFoundException('Course not found');
 
     if (
       requestingUser.role === Role.TEACHER &&
       course.teacherId !== requestingUser.id
     ) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 
@@ -136,22 +145,24 @@ export class GradesService {
     });
   }
 
-  // Moyenne pondérée d'un étudiant dans un cours.
-  // Formule : Σ(note.value × assessmentType.weight / 100)
-  // Retourne aussi un détail par type d'évaluation et un flag isComplete
-  // (false si certains types d'évaluation n'ont pas encore de note).
+  /**
+   * Weighted average of a student in a course.
+   * Formula: Σ(grade.value × assessmentType.weight / 100).
+   * Also returns a per-assessment-type breakdown and an isComplete flag
+   * (false when some assessment types have no grade yet).
+   */
   async getWeightedAverage(
     studentId: string,
     courseId: string,
     requestingUser: GradeUser,
   ) {
-    // Contrôle d'accès : un étudiant ne voit que sa propre moyenne
+    // Access control: a student may only see their own average
     if (
       requestingUser.role === Role.STUDENT &&
       requestingUser.id !== studentId
     ) {
       throw new ForbiddenException(
-        'Accès refusé : vous ne pouvez consulter que votre propre moyenne',
+        'Access denied: you may only view your own average',
       );
     }
 
@@ -165,15 +176,15 @@ export class GradesService {
         assessmentTypes: { select: { id: true, name: true, weight: true } },
       },
     });
-    if (!course) throw new NotFoundException('Cours introuvable');
+    if (!course) throw new NotFoundException('Course not found');
 
-    // Un Teacher ne peut voir que les moyennes de son propre cours
+    // A Teacher may only see averages of their own course
     if (
       requestingUser.role === Role.TEACHER &&
       course.teacherId !== requestingUser.id
     ) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 
@@ -182,18 +193,16 @@ export class GradesService {
       select: { id: true, role: true, name: true },
     });
     if (!student || student.role !== Role.STUDENT) {
-      throw new NotFoundException(
-        `Aucun étudiant trouvé avec l'identifiant "${studentId}"`,
-      );
+      throw new NotFoundException(`No student found with id "${studentId}"`);
     }
 
-    // Vérifier que l'étudiant est inscrit au cours
+    // Ensure the student is enrolled in the course
     const enrollment = await this.prisma.enrollment.findUnique({
       where: { studentId_courseId: { studentId, courseId } },
     });
     if (!enrollment) {
       throw new BadRequestException(
-        `L'étudiant "${student.name}" n'est pas inscrit au cours "${course.code}"`,
+        `Student "${student.name}" is not enrolled in course "${course.code}"`,
       );
     }
 
@@ -202,7 +211,7 @@ export class GradesService {
       select: { assessmentTypeId: true, value: true },
     });
 
-    // Indexer les notes par assessmentTypeId pour une recherche en O(1)
+    // Index grades by assessmentTypeId for O(1) lookup
     const gradeMap = new Map(
       grades.map((g) => [g.assessmentTypeId, Number(g.value)]),
     );
@@ -225,8 +234,8 @@ export class GradesService {
     });
 
     const isComplete = coveredWeight === 100;
-    // Si la moyenne est partielle, on la ramène sur les poids déjà saisis
-    // pour éviter une moyenne artificiellement basse
+    // If the average is partial, normalize it over the weights already recorded
+    // to avoid an artificially low average
     const average =
       coveredWeight > 0
         ? parseFloat(((weightedSum / coveredWeight) * 100).toFixed(2))
@@ -242,18 +251,18 @@ export class GradesService {
     };
   }
 
-  // Notes d'un étudiant :
-  // - STUDENT → uniquement ses propres notes (toutes les matières)
-  // - TEACHER → notes de l'étudiant uniquement dans les cours qu'il enseigne
-  // - ADMIN   → toutes les notes de l'étudiant
+  // Grades of a student:
+  // - STUDENT → only their own grades (all subjects)
+  // - TEACHER → the student's grades only in the courses they teach
+  // - ADMIN   → all the student's grades
   async findByStudent(studentId: string, requestingUser: GradeUser) {
-    // Un étudiant ne peut consulter que ses propres notes
+    // A student may only view their own grades
     if (
       requestingUser.role === Role.STUDENT &&
       requestingUser.id !== studentId
     ) {
       throw new ForbiddenException(
-        'Accès refusé : vous ne pouvez consulter que vos propres notes',
+        'Access denied: you may only view your own grades',
       );
     }
 
@@ -262,12 +271,10 @@ export class GradesService {
       select: { id: true, role: true, name: true },
     });
     if (!student || student.role !== Role.STUDENT) {
-      throw new NotFoundException(
-        `Aucun étudiant trouvé avec l'identifiant "${studentId}"`,
-      );
+      throw new NotFoundException(`No student found with id "${studentId}"`);
     }
 
-    // Un Teacher ne voit que les notes dans ses cours
+    // A Teacher only sees grades in their own courses
     const courseFilter =
       requestingUser.role === Role.TEACHER
         ? { course: { teacherId: requestingUser.id } }
@@ -285,38 +292,38 @@ export class GradesService {
     });
   }
 
-  // Import CSV tout-ou-rien : toutes les lignes sont validées avant toute écriture.
-  // Si une seule ligne est invalide → 422 avec rapport d'erreurs complet, 0 insertion.
+  /**
+   * All-or-nothing CSV import: every row is validated before any write.
+   * If a single row is invalid → 422 with a full error report and 0 insert.
+   */
   async importFromCsv(
     courseId: string,
     file: Express.Multer.File,
     requestingUser: GradeUser,
   ) {
-    // Contrôle d'accès
+    // Access control
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       select: { id: true, code: true, name: true, teacherId: true },
     });
-    if (!course) throw new NotFoundException('Cours introuvable');
+    if (!course) throw new NotFoundException('Course not found');
 
     if (
       requestingUser.role === Role.TEACHER &&
       course.teacherId !== requestingUser.id
     ) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 
-    // Étape 1 — Parse CSV
+    // Step 1 — Parse CSV
     const { rows, parseError } = parseCsvBuffer(file.buffer);
     if (parseError) throw new BadRequestException(parseError);
     if (rows.length === 0)
-      throw new BadRequestException(
-        'Le fichier CSV ne contient aucune ligne de données',
-      );
+      throw new BadRequestException('The CSV file contains no data rows');
 
-    // Étape 2 — Pré-chargement en base (évite N+1 queries lors de la validation)
+    // Step 2 — Preload from the database (avoids N+1 queries during validation)
     const [assessmentTypes, enrollments, existingGrades] = await Promise.all([
       this.prisma.assessmentType.findMany({
         where: { courseId },
@@ -334,14 +341,14 @@ export class GradesService {
 
     const assessmentTypeIds = new Set(assessmentTypes.map((at) => at.id));
     const enrolledStudentIds = new Set(enrollments.map((e) => e.studentId));
-    // Clé composite pour détecter les doublons existants en base
+    // Composite key to detect duplicates already existing in the database
     const existingGradeKeys = new Set(
       existingGrades.map((g) => `${g.studentId}::${g.assessmentTypeId}`),
     );
-    // Clé composite pour détecter les doublons dans le fichier CSV lui-même
+    // Composite key to detect duplicates within the CSV file itself
     const seenInFile = new Set<string>();
 
-    // Étape 3 — Validation complète de toutes les lignes (collecte toutes les erreurs)
+    // Step 3 — Full validation of every row (collects all errors)
     const errors: {
       row: number;
       error: string;
@@ -359,7 +366,7 @@ export class GradesService {
       if (!row.studentId) {
         errors.push({
           row: row.rowNumber,
-          error: 'Le champ studentId est requis',
+          error: 'The studentId field is required',
           data: rowData,
         });
         continue;
@@ -367,7 +374,7 @@ export class GradesService {
       if (!row.assessmentTypeId) {
         errors.push({
           row: row.rowNumber,
-          error: 'Le champ assessmentTypeId est requis',
+          error: 'The assessmentTypeId field is required',
           data: rowData,
         });
         continue;
@@ -377,7 +384,7 @@ export class GradesService {
       if (isNaN(numValue) || numValue < 0 || numValue > 20) {
         errors.push({
           row: row.rowNumber,
-          error: `Valeur invalide "${row.value}" — doit être un nombre entre 0 et 20`,
+          error: `Invalid value "${row.value}" — must be a number between 0 and 20`,
           data: rowData,
         });
         continue;
@@ -386,7 +393,7 @@ export class GradesService {
       if (!enrolledStudentIds.has(row.studentId)) {
         errors.push({
           row: row.rowNumber,
-          error: `L'étudiant "${row.studentId}" n'est pas inscrit au cours "${course.code}"`,
+          error: `Student "${row.studentId}" is not enrolled in course "${course.code}"`,
           data: rowData,
         });
         continue;
@@ -395,7 +402,7 @@ export class GradesService {
       if (!assessmentTypeIds.has(row.assessmentTypeId)) {
         errors.push({
           row: row.rowNumber,
-          error: `Type d'évaluation "${row.assessmentTypeId}" introuvable dans le cours "${course.code}"`,
+          error: `Assessment type "${row.assessmentTypeId}" not found in course "${course.code}"`,
           data: rowData,
         });
         continue;
@@ -406,7 +413,7 @@ export class GradesService {
       if (existingGradeKeys.has(compositeKey)) {
         errors.push({
           row: row.rowNumber,
-          error: `Une note existe déjà en base pour cet étudiant et ce type d'évaluation`,
+          error: `A grade already exists in the database for this student and assessment type`,
           data: rowData,
         });
         continue;
@@ -415,7 +422,7 @@ export class GradesService {
       if (seenInFile.has(compositeKey)) {
         errors.push({
           row: row.rowNumber,
-          error: `Doublon dans le fichier CSV : même étudiant et même type d'évaluation déjà présents`,
+          error: `Duplicate in the CSV file: same student and same assessment type already present`,
           data: rowData,
         });
         continue;
@@ -424,15 +431,15 @@ export class GradesService {
       seenInFile.add(compositeKey);
     }
 
-    // Étape 4 — Si des erreurs → on n'écrit rien (tout-ou-rien)
+    // Step 4 — If there are errors → write nothing (all-or-nothing)
     if (errors.length > 0) {
       throw new UnprocessableEntityException({
-        message: `Import annulé : ${errors.length} erreur(s) détectée(s)`,
+        message: `Import cancelled: ${errors.length} error(s) detected`,
         errors,
       });
     }
 
-    // Étape 5 — Toutes les lignes sont valides : insertion en transaction
+    // Step 5 — Every row is valid: insert within a transaction
     const validRows = rows.filter((r) => !isNaN(parseFloat(r.value)));
 
     await this.prisma.$transaction(
@@ -450,7 +457,7 @@ export class GradesService {
     );
 
     this.logger.log(
-      `Import CSV cours "${course.code}" : ${validRows.length} note(s) importée(s) par user ${requestingUser.id}`,
+      `CSV import course "${course.code}": ${validRows.length} grade(s) imported by user ${requestingUser.id}`,
     );
 
     return {

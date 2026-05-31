@@ -14,12 +14,12 @@ export class UsersController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Créer un compte STUDENT ou TEACHER (admin uniquement)',
+    summary: 'Create a STUDENT or TEACHER account (admin only)',
   })
-  @ApiResponse({ status: 201, description: 'Compte créé avec succès' })
-  @ApiResponse({ status: 400, description: 'Données invalides' })
-  @ApiResponse({ status: 401, description: 'Non authentifié' })
-  @ApiResponse({ status: 409, description: 'Email déjà utilisé' })
+  @ApiResponse({ status: 201, description: 'Account created successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid data' })
+  @ApiResponse({ status: 401, description: 'Not authenticated' })
+  @ApiResponse({ status: 409, description: 'Email already in use' })
   create(@Body() dto: CreateUserDto) {
     return this.usersService.create(dto);
   }

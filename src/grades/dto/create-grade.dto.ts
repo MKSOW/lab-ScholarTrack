@@ -11,20 +11,20 @@ import {
 export class CreateGradeDto {
   @ApiProperty({
     example: 'clxxxstudent1',
-    description: "Identifiant de l'étudiant",
+    description: 'Student id',
   })
   @IsString()
   @IsNotEmpty()
   studentId: string;
 
-  @ApiProperty({ example: 'clxxxcourse1', description: 'Identifiant du cours' })
+  @ApiProperty({ example: 'clxxxcourse1', description: 'Course id' })
   @IsString()
   @IsNotEmpty()
   courseId: string;
 
   @ApiProperty({
     example: 'clxxxassessment1',
-    description: "Identifiant du type d'évaluation (doit appartenir au cours)",
+    description: 'Assessment type id (must belong to the course)',
   })
   @IsString()
   @IsNotEmpty()
@@ -32,7 +32,7 @@ export class CreateGradeDto {
 
   @ApiProperty({
     example: 14.5,
-    description: 'Note sur 20 (0.00 → 20.00)',
+    description: 'Grade out of 20 (0.00 → 20.00)',
     minimum: 0,
     maximum: 20,
   })
@@ -41,7 +41,7 @@ export class CreateGradeDto {
   @Max(20)
   value: number;
 
-  @ApiProperty({ example: 'Bon travail', required: false })
+  @ApiProperty({ example: 'Good work', required: false })
   @IsString()
   @IsOptional()
   comment?: string;

@@ -11,10 +11,10 @@ export interface CsvParseResult {
   parseError?: string;
 }
 
-// Parse un buffer CSV en tableau de lignes structurées.
-// Format attendu (en-tête obligatoire) :
+// Parses a CSV buffer into an array of structured rows.
+// Expected format (header required):
 //   studentId,assessmentTypeId,value,comment
-// La colonne comment est optionnelle et peut contenir des virgules.
+// The comment column is optional and may contain commas.
 export function parseCsvBuffer(buffer: Buffer): CsvParseResult {
   const text = buffer
     .toString('utf-8')
@@ -23,7 +23,7 @@ export function parseCsvBuffer(buffer: Buffer): CsvParseResult {
   const lines = text.split('\n').filter((l) => l.trim().length > 0);
 
   if (lines.length === 0) {
-    return { rows: [], parseError: 'Le fichier CSV est vide' };
+    return { rows: [], parseError: 'The CSV file is empty' };
   }
 
   const header = lines[0].trim().toLowerCase();
@@ -31,7 +31,7 @@ export function parseCsvBuffer(buffer: Buffer): CsvParseResult {
   if (header !== expectedHeader) {
     return {
       rows: [],
-      parseError: `En-tête invalide. Attendu : "studentId,assessmentTypeId,value,comment". Reçu : "${lines[0].trim()}"`,
+      parseError: `Invalid header. Expected: "studentId,assessmentTypeId,value,comment". Received: "${lines[0].trim()}"`,
     };
   }
 
@@ -40,7 +40,7 @@ export function parseCsvBuffer(buffer: Buffer): CsvParseResult {
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    // On split en max 4 parties pour que la colonne comment puisse contenir des virgules
+    // Split into at most 4 parts so the comment column can contain commas
     const parts = line.split(',');
     const studentId = parts[0]?.trim() ?? '';
     const assessmentTypeId = parts[1]?.trim() ?? '';

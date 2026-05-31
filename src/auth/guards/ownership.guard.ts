@@ -23,7 +23,7 @@ export class OwnershipGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    // Pas de @CheckOwnership() sur la route → le guard laisse passer
+    // No @CheckOwnership() on the route → the guard lets it through
     if (!paramName) return true;
 
     const request = context.switchToHttp().getRequest<{
@@ -34,11 +34,11 @@ export class OwnershipGuard implements CanActivate {
     const user = request.user;
     if (!user) return false;
 
-    // Les admins ont accès à toutes les ressources
+    // Admins have access to every resource
     if (user.role === Role.ADMIN) return true;
 
-    // Seuls les teachers ont une logique d'appartenance sur les cours
-    // Les étudiants : leur accès est restreint dans les services (filtre sur studentId)
+    // Only teachers have course-ownership logic
+    // Students: their access is restricted in the services (filtered on studentId)
     if (user.role !== Role.TEACHER) return true;
 
     const courseId = request.params[paramName];
@@ -50,12 +50,12 @@ export class OwnershipGuard implements CanActivate {
     });
 
     if (!course) {
-      throw new NotFoundException('Cours introuvable');
+      throw new NotFoundException('Course not found');
     }
 
     if (course.teacherId !== user.id) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 

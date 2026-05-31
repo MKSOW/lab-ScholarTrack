@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/swagger';
 import { CreateCourseDto } from './create-course.dto';
 
-// Tous les champs deviennent optionnels.
-// Si assessmentTypes est fourni, la validation de la somme des poids s'applique quand même.
+// All fields become optional.
+// If assessmentTypes is provided, the weights-sum validation still applies.
 export class UpdateCourseDto extends PartialType(CreateCourseDto) {}

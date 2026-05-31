@@ -22,14 +22,14 @@ export function parseEnrollmentCsvBuffer(
   const lines = text.split('\n').filter((l) => l.trim().length > 0);
 
   if (lines.length === 0) {
-    return { rows: [], parseError: 'Le fichier CSV est vide' };
+    return { rows: [], parseError: 'The CSV file is empty' };
   }
 
   const header = lines[0].trim().toLowerCase();
   if (header !== 'studentid,courseid') {
     return {
       rows: [],
-      parseError: `En-tête invalide. Attendu : "studentId,courseId". Reçu : "${lines[0].trim()}"`,
+      parseError: `Invalid header. Expected: "studentId,courseId". Received: "${lines[0].trim()}"`,
     };
   }
 

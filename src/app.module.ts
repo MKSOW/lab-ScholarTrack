@@ -16,8 +16,8 @@ import { auth } from './auth/auth';
 @Module({
   imports: [
     PrismaModule,
-    // disableGlobalAuthGuard: true → on désactive le guard interne de la librairie
-    // pour le re-enregistrer explicitement ci-dessous et garantir l'ordre d'exécution.
+    // disableGlobalAuthGuard: true → disable the library's internal guard
+    // so we can re-register it explicitly below and guarantee execution order.
     AuthModule.forRoot({ auth, disableGlobalAuthGuard: true }),
     UsersModule,
     CoursesModule,
@@ -28,16 +28,16 @@ import { auth } from './auth/auth';
   controllers: [AppController],
   providers: [
     AppService,
-    // Ordre garanti : AuthGuard en premier (peuple request.user), puis RolesGuard (vérifie le rôle).
+    // Guaranteed order: AuthGuard first (populates request.user), then RolesGuard (checks the role).
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    // On instancie RateLimitMiddleware nous-mêmes (constructeur à params primitifs,
-    // non injectables par DI), puis on l'applique comme middleware fonctionnel.
-    // .bind() préserve `this` pour que le Map interne reste partagé entre requêtes.
+    // We instantiate RateLimitMiddleware ourselves (constructor with primitive
+    // params, not DI-injectable), then apply it as a functional middleware.
+    // .bind() preserves `this` so the internal Map stays shared across requests.
     const rateLimiter = new RateLimitMiddleware();
     consumer.apply(rateLimiter.use.bind(rateLimiter)).forRoutes('*');
   }

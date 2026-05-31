@@ -4,13 +4,13 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  // bodyParser: false est requis par @thallesp/nestjs-better-auth.
-  // Le package réinstalle automatiquement les parsers JSON/urlencoded.
+  // bodyParser: false is required by @thallesp/nestjs-better-auth.
+  // The package automatically reinstalls the JSON/urlencoded parsers.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
-  // Active la validation globale des DTOs (class-validator).
-  // whitelist: true supprime les champs inconnus du body.
-  // forbidNonWhitelisted: true renvoie 400 si des champs inconnus sont envoyés.
+  // Enable global DTO validation (class-validator).
+  // whitelist: true strips unknown fields from the body.
+  // forbidNonWhitelisted: true returns 400 when unknown fields are sent.
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -19,10 +19,10 @@ async function bootstrap() {
     }),
   );
 
-  // Configuration Swagger
+  // Swagger configuration
   const config = new DocumentBuilder()
     .setTitle('ScholarTrack API')
-    .setDescription('API de gestion académique — cours, notes, présences')
+    .setDescription('Academic management API — courses, grades, attendance')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

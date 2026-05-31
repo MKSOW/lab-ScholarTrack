@@ -6,10 +6,12 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
-// Pipe de vérification de capacité.
-// Branché sur le paramètre :id de la route POST /courses/:id/enroll.
-// Reçoit l'identifiant du cours, vérifie qu'il reste de la place,
-// et renvoie l'id inchangé si l'inscription est possible.
+/**
+ * Course capacity-check pipe.
+ * Bound to the `:id` param of the `POST /courses/:id/enroll` route.
+ * Receives the course id, verifies that seats remain, and returns the id
+ * unchanged when enrollment is possible.
+ */
 @Injectable()
 export class CapacityPipe implements PipeTransform<string, Promise<string>> {
   constructor(private readonly prisma: PrismaService) {}
@@ -24,12 +26,12 @@ export class CapacityPipe implements PipeTransform<string, Promise<string>> {
     });
 
     if (!course) {
-      throw new NotFoundException('Cours introuvable');
+      throw new NotFoundException('Course not found');
     }
 
     if (course._count.enrollments >= course.capacity) {
       throw new ConflictException(
-        `Cours complet : capacité maximale de ${course.capacity} étudiant(s) atteinte`,
+        `Course full: maximum capacity of ${course.capacity} student(s) reached`,
       );
     }
 

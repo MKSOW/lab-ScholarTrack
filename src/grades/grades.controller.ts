@@ -34,17 +34,20 @@ export class GradesController {
   @Post()
   @Roles(Role.TEACHER, Role.ADMIN)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Saisir une note (teacher du cours ou admin)' })
-  @ApiResponse({ status: 201, description: 'Note saisie avec succès' })
-  @ApiResponse({ status: 400, description: 'Étudiant non inscrit au cours' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
+  @ApiOperation({ summary: 'Record a grade (course teacher or admin)' })
+  @ApiResponse({ status: 201, description: 'Grade recorded successfully' })
+  @ApiResponse({
+    status: 400,
+    description: 'Student not enrolled in the course',
+  })
+  @ApiResponse({ status: 403, description: 'Access denied' })
   @ApiResponse({
     status: 404,
-    description: 'Cours, étudiant ou type évaluation introuvable',
+    description: 'Course, student or assessment type not found',
   })
   @ApiResponse({
     status: 409,
-    description: "Note déjà saisie pour ce type d'évaluation",
+    description: 'A grade already exists for this assessment type',
   })
   create(@Body() dto: CreateGradeDto, @Req() req: { user: RequestUser }) {
     return this.gradesService.create(dto, req.user);
@@ -52,10 +55,10 @@ export class GradesController {
 
   @Get('course/:courseId')
   @Roles(Role.TEACHER, Role.ADMIN)
-  @ApiOperation({ summary: "Notes d'un cours (teacher propriétaire ou admin)" })
-  @ApiResponse({ status: 200, description: 'Liste des notes du cours' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Cours introuvable' })
+  @ApiOperation({ summary: 'Grades of a course (owning teacher or admin)' })
+  @ApiResponse({ status: 200, description: 'List of the course grades' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
   findByCourse(
     @Param('courseId') courseId: string,
     @Req() req: { user: RequestUser },
@@ -66,11 +69,11 @@ export class GradesController {
   @Get('student/:studentId')
   @ApiOperation({
     summary:
-      "Notes d'un étudiant — student : ses propres notes ; teacher : ses cours uniquement ; admin : tout",
+      'Grades of a student — student: own grades; teacher: own courses only; admin: everything',
   })
-  @ApiResponse({ status: 200, description: "Liste des notes de l'étudiant" })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Étudiant introuvable' })
+  @ApiResponse({ status: 200, description: 'List of the student grades' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Student not found' })
   findByStudent(
     @Param('studentId') studentId: string,
     @Req() req: { user: RequestUser },
@@ -90,41 +93,47 @@ export class GradesController {
           type: 'string',
           format: 'binary',
           description:
-            'Fichier CSV — colonnes : studentId,assessmentTypeId,value,comment',
+            'CSV file — columns: studentId,assessmentTypeId,value,comment',
         },
       },
     },
   })
   @ApiOperation({
     summary:
-      "Import CSV de notes — tout-ou-rien : si une ligne est invalide, aucune note n'est insérée",
+      'CSV grade import — all-or-nothing: if any row is invalid, no grade is inserted',
   })
-  @ApiResponse({ status: 201, description: 'Import réussi — { imported: N }' })
+  @ApiResponse({
+    status: 201,
+    description: 'Import successful — { imported: N }',
+  })
   @ApiResponse({
     status: 422,
     description:
-      'Erreurs de validation — rapport complet fourni, aucune insertion effectuée',
+      'Validation errors — full report provided, no insert performed',
   })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Cours introuvable' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
   importFromCsv(
     @Param('courseId') courseId: string,
     @UploadedFile() file: Express.Multer.File,
     @Req() req: { user: RequestUser },
   ) {
-    if (!file) throw new BadRequestException('Aucun fichier reçu');
+    if (!file) throw new BadRequestException('No file received');
     return this.gradesService.importFromCsv(courseId, file, req.user);
   }
 
   @Get('average/:studentId/:courseId')
   @ApiOperation({
     summary:
-      'Moyenne pondérée — Σ(note × poids / 100). Si des notes manquent, retourne une moyenne provisoire normalisée + isComplete: false',
+      'Weighted average — Σ(grade × weight / 100). If grades are missing, returns a normalized provisional average + isComplete: false',
   })
-  @ApiResponse({ status: 200, description: 'Moyenne pondérée calculée' })
-  @ApiResponse({ status: 400, description: 'Étudiant non inscrit au cours' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Cours ou étudiant introuvable' })
+  @ApiResponse({ status: 200, description: 'Weighted average computed' })
+  @ApiResponse({
+    status: 400,
+    description: 'Student not enrolled in the course',
+  })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Course or student not found' })
   getWeightedAverage(
     @Param('studentId') studentId: string,
     @Param('courseId') courseId: string,
