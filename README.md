@@ -44,18 +44,63 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
-## Run tests
+## Tests
+
+The project is tested with **Jest**. Better Auth is ESM-only and incompatible
+with Jest's CommonJS runtime, so the `@thallesp/nestjs-better-auth` package is
+mapped to a no-op mock (`test/mocks/nestjs-better-auth.mock.ts`) and the
+`src/auth/auth.ts` module is mocked per-spec where needed.
 
 ```bash
-# unit tests
+# run the whole suite once
+$ npx jest
+
+# watch mode
 $ npm run test
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
+# coverage report
 $ npm run test:cov
 ```
+
+### What is covered
+
+| Layer | Approach |
+| ----- | -------- |
+| **Services** (`Grades`, `Courses`, `Attendance`, `Admin`, `Users`) | Unit tests, direct instantiation with an in-memory Prisma mock. Business rules: weighted average, capacity, all-or-nothing CSV imports, RBAC ownership. |
+| **Capacity pipe** | Unit tests on the capacity check (available / full / not found). |
+| **Rate-limiting middleware** | Unit tests on the 429 threshold. |
+| **Guards** (`Roles`, `Ownership`) | Unit tests on role and resource-ownership logic. |
+| **Controllers** | Delegation tests (correct service method + argument order, `400` guard rails on missing files). |
+| **Full scenario** | Integration test (`src/integration/full-scenario.integration.spec.ts`). |
+
+### Integration scenario
+
+`full-scenario.integration.spec.ts` wires the **real** controllers, services and
+the capacity pipe together through a NestJS `TestingModule`, all sharing a single
+**stateful in-memory Prisma double** (state created in one step is read back in
+the next, like a real database). It plays an end-to-end business flow:
+
+> admin creates a course (2 weighted assessment types) → enrolls a student
+> (capacity pipe) → rejects a duplicate enrollment and a full course → teacher
+> records a grade → rejects a duplicate grade and a grade for a non-enrolled
+> student → partial weighted average (`isComplete: false`) → bulk CSV import of
+> the missing grade → complete weighted average `15.2/20`.
+
+It also asserts RBAC (a student cannot read another student's average) and the
+all-or-nothing guarantee (one invalid CSV row ⇒ zero rows inserted).
+
+### Coverage
+
+Measured with `npm run test:cov` (`jest --coverage`):
+
+| Metric | Coverage |
+| ------ | -------- |
+| Statements | ~90% |
+| Branches | ~86% |
+| Functions | ~90% |
+| Lines | ~92% |
+
+> 203 tests across 17 suites, comfortably above the 70% bonus threshold.
 
 ## API — Admin & Reporting
 
