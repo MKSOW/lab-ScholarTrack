@@ -13,19 +13,25 @@ import { UpdateCourseDto } from './dto/update-course.dto';
 
 export type CourseUser = { id: string; role: Role };
 
+/**
+ * Course business logic: CRUD with per-role rights, assessment-type weighting,
+ * role-aware filtering/pagination, and capacity-safe student enrollment.
+ * All persistence goes through the injected PrismaService.
+ */
 @Injectable()
 export class CoursesService {
   private readonly logger = new Logger(CoursesService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Creates a course and its assessment types within a single transaction. */
   async create(dto: CreateCourseDto) {
     const existing = await this.prisma.course.findUnique({
       where: { code: dto.code },
     });
     if (existing) {
       throw new ConflictException(
-        `Un cours avec le code "${dto.code}" existe déjà`,
+        `A course with code "${dto.code}" already exists`,
       );
     }
 
@@ -35,12 +41,12 @@ export class CoursesService {
     });
     if (!teacher || teacher.role !== Role.TEACHER) {
       throw new NotFoundException(
-        `Aucun enseignant trouvé avec l'identifiant "${dto.teacherId}"`,
+        `No teacher found with id "${dto.teacherId}"`,
       );
     }
 
-    // Transaction : on crée le cours et ses types d'évaluation ensemble.
-    // Si la création des assessment types échoue, le cours est annulé.
+    // Transaction: create the course and its assessment types together.
+    // If the assessment-type creation fails, the course is rolled back.
     const course = await this.prisma.$transaction(async (tx) => {
       return tx.course.create({
         data: {
@@ -64,34 +70,35 @@ export class CoursesService {
       });
     });
 
-    this.logger.log(`Cours créé : ${course.code} — ${course.name}`);
+    this.logger.log(`Course created: ${course.code} — ${course.name}`);
     return course;
   }
 
+  /** Lists courses with role-based scoping and pagination. */
   async findAll(user: CourseUser, filter: FilterCoursesDto) {
     const page = filter.page ?? 1;
     const limit = filter.limit ?? 10;
     const skip = (page - 1) * limit;
 
-    // Construction du filtre : base commune + restriction selon le rôle
+    // Build the filter: common base + role-based restriction
     const where: Prisma.CourseWhereInput = {};
     if (filter.semester) {
       where.semester = filter.semester;
     }
 
     if (user.role === Role.TEACHER) {
-      // Un enseignant ne voit que ses propres cours
+      // A teacher only sees their own courses
       where.teacherId = user.id;
     } else if (user.role === Role.STUDENT) {
-      // Un étudiant ne voit que les cours où il est inscrit
+      // A student only sees the courses they are enrolled in
       where.enrollments = { some: { studentId: user.id } };
     } else if (filter.teacherId) {
-      // Admin uniquement : filtre facultatif par enseignant
+      // Admin only: optional filter by teacher
       where.teacherId = filter.teacherId;
     }
 
-    // findMany + count exécutés dans une seule transaction (un aller-retour DB).
-    // count utilise le même where → total cohérent avec les données paginées.
+    // findMany + count run in a single transaction (one DB round-trip).
+    // count uses the same where → total consistent with the paginated data.
     const [data, total] = await this.prisma.$transaction([
       this.prisma.course.findMany({
         where,
@@ -118,6 +125,7 @@ export class CoursesService {
     };
   }
 
+  /** Returns a single course detail with role-based access checks. */
   async findOne(id: string, user: CourseUser) {
     const course = await this.prisma.course.findUnique({
       where: { id },
@@ -128,11 +136,11 @@ export class CoursesService {
       },
     });
 
-    if (!course) throw new NotFoundException('Cours introuvable');
+    if (!course) throw new NotFoundException('Course not found');
 
     if (user.role === Role.TEACHER && course.teacherId !== user.id) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 
@@ -142,7 +150,7 @@ export class CoursesService {
       });
       if (!enrollment) {
         throw new ForbiddenException(
-          "Accès refusé : vous n'êtes pas inscrit à ce cours",
+          'Access denied: you are not enrolled in this course',
         );
       }
     }
@@ -150,9 +158,10 @@ export class CoursesService {
     return course;
   }
 
+  /** Updates a course; assessment types are replaced when provided. */
   async update(id: string, dto: UpdateCourseDto) {
     const course = await this.prisma.course.findUnique({ where: { id } });
-    if (!course) throw new NotFoundException('Cours introuvable');
+    if (!course) throw new NotFoundException('Course not found');
 
     if (dto.code && dto.code !== course.code) {
       const duplicate = await this.prisma.course.findUnique({
@@ -160,7 +169,7 @@ export class CoursesService {
       });
       if (duplicate) {
         throw new ConflictException(
-          `Un cours avec le code "${dto.code}" existe déjà`,
+          `A course with code "${dto.code}" already exists`,
         );
       }
     }
@@ -172,14 +181,14 @@ export class CoursesService {
       });
       if (!teacher || teacher.role !== Role.TEACHER) {
         throw new NotFoundException(
-          `Aucun enseignant trouvé avec l'identifiant "${dto.teacherId}"`,
+          `No teacher found with id "${dto.teacherId}"`,
         );
       }
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      // Si de nouveaux types d'évaluation sont fournis, on supprime les anciens
-      // et on recrée — plus simple qu'un upsert individuel
+      // If new assessment types are provided, delete the old ones and recreate
+      // them — simpler than an individual upsert
       if (dto.assessmentTypes) {
         await tx.assessmentType.deleteMany({ where: { courseId: id } });
       }
@@ -206,30 +215,32 @@ export class CoursesService {
       });
     });
 
-    this.logger.log(`Cours mis à jour : ${updated.code}`);
+    this.logger.log(`Course updated: ${updated.code}`);
     return updated;
   }
 
+  /** Hard-deletes a course. */
   async remove(id: string) {
     const course = await this.prisma.course.findUnique({ where: { id } });
-    if (!course) throw new NotFoundException('Cours introuvable');
+    if (!course) throw new NotFoundException('Course not found');
 
     await this.prisma.course.delete({ where: { id } });
-    this.logger.log(`Cours supprimé : ${course.code}`);
-    return { message: `Cours "${course.code}" supprimé avec succès` };
+    this.logger.log(`Course deleted: ${course.code}`);
+    return { message: `Course "${course.code}" deleted successfully` };
   }
 
-  // Validation atomique de capacité + doublon dans la même transaction
-  // que la création de l'inscription pour éviter les courses critiques.
+  /**
+   * Enrolls a student. Capacity and duplicate checks run in the same
+   * (serializable) transaction as the enrollment creation to avoid race
+   * conditions.
+   */
   async enroll(courseId: string, studentId: string) {
     const student = await this.prisma.user.findUnique({
       where: { id: studentId },
       select: { id: true, role: true, name: true },
     });
     if (!student || student.role !== Role.STUDENT) {
-      throw new NotFoundException(
-        `Aucun étudiant trouvé avec l'identifiant "${studentId}"`,
-      );
+      throw new NotFoundException(`No student found with id "${studentId}"`);
     }
 
     const enrollment = await this.prisma.$transaction(
@@ -238,18 +249,20 @@ export class CoursesService {
           where: { id: courseId },
           select: { capacity: true, _count: { select: { enrollments: true } } },
         });
-        if (!course) throw new NotFoundException('Cours introuvable');
+        if (!course) throw new NotFoundException('Course not found');
 
         const existing = await tx.enrollment.findUnique({
           where: { studentId_courseId: { studentId, courseId } },
         });
         if (existing) {
-          throw new ConflictException("L'étudiant est déjà inscrit à ce cours");
+          throw new ConflictException(
+            'The student is already enrolled in this course',
+          );
         }
 
         if (course._count.enrollments >= course.capacity) {
           throw new ConflictException(
-            'La capacité maximale de ce cours est atteinte',
+            'The maximum capacity of this course has been reached',
           );
         }
 
@@ -265,7 +278,7 @@ export class CoursesService {
     );
 
     this.logger.log(
-      `Inscription : ${student.name} → cours ${enrollment.course.code}`,
+      `Enrollment: ${student.name} → course ${enrollment.course.code}`,
     );
     return enrollment;
   }

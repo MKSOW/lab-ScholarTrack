@@ -29,11 +29,11 @@ export class AttendanceController {
   @Roles(Role.TEACHER, Role.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Créer une séance (teacher du cours ou admin)',
+    summary: 'Create a session (course teacher or admin)',
   })
-  @ApiResponse({ status: 201, description: 'Séance créée avec succès' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Cours introuvable' })
+  @ApiResponse({ status: 201, description: 'Session created successfully' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
   createSession(
     @Body() dto: CreateSessionDto,
     @Req() req: { user: RequestUser },
@@ -44,11 +44,11 @@ export class AttendanceController {
   @Get('sessions/course/:courseId')
   @ApiOperation({
     summary:
-      "Lister les séances d'un cours — teacher (propriétaire), student (inscrit) ou admin",
+      "List a course's sessions — teacher (owner), student (enrolled) or admin",
   })
-  @ApiResponse({ status: 200, description: 'Liste des séances' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Cours introuvable' })
+  @ApiResponse({ status: 200, description: 'List of sessions' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
   findSessionsByCourse(
     @Param('courseId') courseId: string,
     @Req() req: { user: RequestUser },
@@ -61,15 +61,15 @@ export class AttendanceController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      "Enregistrer en masse les présences d'une séance — upsert atomique tout-ou-rien",
+      "Bulk-record a session's attendances — atomic all-or-nothing upsert",
   })
-  @ApiResponse({ status: 200, description: 'Présences enregistrées' })
-  @ApiResponse({ status: 400, description: 'Séance annulée' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Séance introuvable' })
+  @ApiResponse({ status: 200, description: 'Attendances recorded' })
+  @ApiResponse({ status: 400, description: 'Session cancelled' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Session not found' })
   @ApiResponse({
     status: 422,
-    description: 'Erreurs détectées — rapport complet, aucune écriture',
+    description: 'Errors detected — full report, no write performed',
   })
   recordAttendances(
     @Param('sessionId') sessionId: string,
@@ -82,12 +82,12 @@ export class AttendanceController {
   @Patch('sessions/:id/cancel')
   @Roles(Role.TEACHER, Role.ADMIN)
   @ApiOperation({
-    summary: 'Annuler une séance (soft delete via cancelledAt)',
+    summary: 'Cancel a session (soft delete via cancelledAt)',
   })
-  @ApiResponse({ status: 200, description: 'Séance annulée' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Séance introuvable' })
-  @ApiResponse({ status: 409, description: 'Séance déjà annulée' })
+  @ApiResponse({ status: 200, description: 'Session cancelled' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Session not found' })
+  @ApiResponse({ status: 409, description: 'Session already cancelled' })
   cancelSession(@Param('id') id: string, @Req() req: { user: RequestUser }) {
     return this.attendanceService.cancelSession(id, req.user);
   }

@@ -34,13 +34,13 @@ export class CoursesController {
   @Post()
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Créer un cours (admin uniquement)' })
-  @ApiResponse({ status: 201, description: 'Cours créé avec succès' })
+  @ApiOperation({ summary: 'Create a course (admin only)' })
+  @ApiResponse({ status: 201, description: 'Course created successfully' })
   @ApiResponse({
     status: 400,
-    description: 'Données invalides ou somme des poids ≠ 100',
+    description: 'Invalid data or weights do not sum to 100',
   })
-  @ApiResponse({ status: 409, description: 'Code cours déjà utilisé' })
+  @ApiResponse({ status: 409, description: 'Course code already in use' })
   create(@Body() dto: CreateCourseDto) {
     return this.coursesService.create(dto);
   }
@@ -49,16 +49,16 @@ export class CoursesController {
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Inscrire un étudiant à un cours (admin uniquement)',
+    summary: 'Enroll a student in a course (admin only)',
   })
-  @ApiResponse({ status: 201, description: 'Étudiant inscrit avec succès' })
-  @ApiResponse({ status: 404, description: 'Cours ou étudiant introuvable' })
+  @ApiResponse({ status: 201, description: 'Student enrolled successfully' })
+  @ApiResponse({ status: 404, description: 'Course or student not found' })
   @ApiResponse({
     status: 409,
-    description: 'Cours complet ou étudiant déjà inscrit',
+    description: 'Course full or student already enrolled',
   })
   enroll(
-    // CapacityPipe vérifie la capacité du cours avant d'atteindre le service
+    // CapacityPipe checks course capacity before reaching the service
     @Param('id', CapacityPipe) courseId: string,
     @Body() dto: EnrollStudentDto,
   ) {
@@ -67,9 +67,9 @@ export class CoursesController {
 
   @Get()
   @ApiOperation({
-    summary: 'Lister les cours — filtrage (semestre, enseignant) et pagination',
+    summary: 'List courses — filtering (semester, teacher) and pagination',
   })
-  @ApiResponse({ status: 200, description: 'Liste paginée des cours' })
+  @ApiResponse({ status: 200, description: 'Paginated list of courses' })
   findAll(
     @Query() filter: FilterCoursesDto,
     @Req() req: { user: RequestUser },
@@ -78,10 +78,10 @@ export class CoursesController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: "Obtenir le détail d'un cours" })
-  @ApiResponse({ status: 200, description: 'Détail du cours' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Cours introuvable' })
+  @ApiOperation({ summary: 'Get a course detail' })
+  @ApiResponse({ status: 200, description: 'Course detail' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
   findOne(@Param('id') id: string, @Req() req: { user: RequestUser }) {
     return this.coursesService.findOne(id, req.user);
   }
@@ -91,20 +91,20 @@ export class CoursesController {
   @CheckOwnership('id')
   @UseGuards(OwnershipGuard)
   @ApiOperation({
-    summary: 'Mettre à jour un cours (admin ou professeur propriétaire)',
+    summary: 'Update a course (admin or owning teacher)',
   })
-  @ApiResponse({ status: 200, description: 'Cours mis à jour' })
-  @ApiResponse({ status: 403, description: 'Accès refusé' })
-  @ApiResponse({ status: 404, description: 'Cours introuvable' })
+  @ApiResponse({ status: 200, description: 'Course updated' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
   update(@Param('id') id: string, @Body() dto: UpdateCourseDto) {
     return this.coursesService.update(id, dto);
   }
 
   @Delete(':id')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Supprimer un cours (admin uniquement)' })
-  @ApiResponse({ status: 200, description: 'Cours supprimé' })
-  @ApiResponse({ status: 404, description: 'Cours introuvable' })
+  @ApiOperation({ summary: 'Delete a course (admin only)' })
+  @ApiResponse({ status: 200, description: 'Course deleted' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
   remove(@Param('id') id: string) {
     return this.coursesService.remove(id);
   }

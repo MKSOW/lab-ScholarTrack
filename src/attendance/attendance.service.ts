@@ -21,26 +21,32 @@ const AT_RISK_THRESHOLD = Number(
   process.env.ATTENDANCE_AT_RISK_THRESHOLD ?? 0.75,
 );
 
+/**
+ * Attendance business logic: session creation/cancellation (soft delete),
+ * bulk all-or-nothing attendance recording, and attendance-rate / atRisk
+ * computation per student and class-wide. All persistence goes through the
+ * injected PrismaService.
+ */
 @Injectable()
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
-  // Création d'une séance — un Teacher ne peut créer que pour ses propres cours
+  // Create a session — a Teacher can only create for their own courses
   async createSession(dto: CreateSessionDto, requestingUser: AttendanceUser) {
     const course = await this.prisma.course.findUnique({
       where: { id: dto.courseId },
       select: { id: true, code: true, teacherId: true },
     });
-    if (!course) throw new NotFoundException('Cours introuvable');
+    if (!course) throw new NotFoundException('Course not found');
 
     if (
       requestingUser.role === Role.TEACHER &&
       course.teacherId !== requestingUser.id
     ) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 
@@ -56,29 +62,29 @@ export class AttendanceService {
     });
 
     this.logger.log(
-      `Séance créée : ${course.code} — ${session.date.toISOString()}`,
+      `Session created: ${course.code} — ${session.date.toISOString()}`,
     );
     return session;
   }
 
-  // Liste des séances d'un cours — accès filtré selon le rôle
+  // List a course's sessions — access filtered by role
   async findSessionsByCourse(courseId: string, requestingUser: AttendanceUser) {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       select: { id: true, teacherId: true, code: true },
     });
-    if (!course) throw new NotFoundException('Cours introuvable');
+    if (!course) throw new NotFoundException('Course not found');
 
     if (
       requestingUser.role === Role.TEACHER &&
       course.teacherId !== requestingUser.id
     ) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 
-    // Un étudiant doit être inscrit au cours pour voir ses séances
+    // A student must be enrolled in the course to see its sessions
     if (requestingUser.role === Role.STUDENT) {
       const enrollment = await this.prisma.enrollment.findUnique({
         where: {
@@ -87,7 +93,7 @@ export class AttendanceService {
       });
       if (!enrollment) {
         throw new ForbiddenException(
-          "Accès refusé : vous n'êtes pas inscrit à ce cours",
+          'Access denied: you are not enrolled in this course',
         );
       }
     }
@@ -99,25 +105,25 @@ export class AttendanceService {
     });
   }
 
-  // Annulation d'une séance — soft delete via cancelledAt
+  // Cancel a session — soft delete via cancelledAt
   async cancelSession(sessionId: string, requestingUser: AttendanceUser) {
     const session = await this.prisma.courseSession.findUnique({
       where: { id: sessionId },
       include: { course: { select: { teacherId: true, code: true } } },
     });
-    if (!session) throw new NotFoundException('Séance introuvable');
+    if (!session) throw new NotFoundException('Session not found');
 
     if (
       requestingUser.role === Role.TEACHER &&
       session.course.teacherId !== requestingUser.id
     ) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 
     if (session.cancelledAt) {
-      throw new ConflictException('Cette séance est déjà annulée');
+      throw new ConflictException('This session is already cancelled');
     }
 
     const updated = await this.prisma.courseSession.update({
@@ -126,53 +132,53 @@ export class AttendanceService {
     });
 
     this.logger.log(
-      `Séance annulée : ${session.course.code} — ${updated.date.toISOString()}`,
+      `Session cancelled: ${session.course.code} — ${updated.date.toISOString()}`,
     );
     return updated;
   }
 
-  // Enregistrement en masse — toutes les présences validées avant toute écriture.
-  // Si une seule entrée est invalide → 422 avec rapport, aucune ligne touchée.
-  // Upsert pour permettre la correction d'une présence déjà saisie.
+  // Bulk recording — all attendances validated before any write.
+  // If a single entry is invalid → 422 with a report, no row touched.
+  // Upsert to allow correcting an already-recorded attendance.
   async recordAttendances(
     sessionId: string,
     dto: RecordAttendanceDto,
     requestingUser: AttendanceUser,
   ) {
-    // 1. La séance doit exister
+    // 1. The session must exist
     const session = await this.prisma.courseSession.findUnique({
       where: { id: sessionId },
       include: {
         course: { select: { id: true, teacherId: true, code: true } },
       },
     });
-    if (!session) throw new NotFoundException('Séance introuvable');
+    if (!session) throw new NotFoundException('Session not found');
 
-    // 2. La séance ne doit pas être annulée
+    // 2. The session must not be cancelled
     if (session.cancelledAt) {
       throw new BadRequestException(
-        "Impossible d'enregistrer des présences sur une séance annulée",
+        'Cannot record attendances for a cancelled session',
       );
     }
 
-    // 3. Un TEACHER ne peut saisir que pour ses propres cours
+    // 3. A TEACHER can only record for their own courses
     if (
       requestingUser.role === Role.TEACHER &&
       session.course.teacherId !== requestingUser.id
     ) {
       throw new ForbiddenException(
-        "Accès refusé : vous n'êtes pas le professeur de ce cours",
+        'Access denied: you are not the teacher of this course',
       );
     }
 
-    // 4. Pré-chargement des étudiants inscrits (évite N+1 queries)
+    // 4. Preload enrolled students (avoids N+1 queries)
     const enrollments = await this.prisma.enrollment.findMany({
       where: { courseId: session.course.id },
       select: { studentId: true },
     });
     const enrolledStudentIds = new Set(enrollments.map((e) => e.studentId));
 
-    // 5. Validation complète — collecte de toutes les erreurs avant toute écriture
+    // 5. Full validation — collect all errors before any write
     const errors: { index: number; studentId: string; error: string }[] = [];
     const seenInRequest = new Set<string>();
 
@@ -181,7 +187,7 @@ export class AttendanceService {
         errors.push({
           index,
           studentId: item.studentId,
-          error: `Étudiant non inscrit au cours "${session.course.code}"`,
+          error: `Student not enrolled in course "${session.course.code}"`,
         });
         return;
       }
@@ -190,7 +196,7 @@ export class AttendanceService {
           index,
           studentId: item.studentId,
           error:
-            'Doublon : cet étudiant apparaît plusieurs fois dans la requête',
+            'Duplicate: this student appears multiple times in the request',
         });
         return;
       }
@@ -199,12 +205,12 @@ export class AttendanceService {
 
     if (errors.length > 0) {
       throw new UnprocessableEntityException({
-        message: `Enregistrement annulé : ${errors.length} erreur(s) détectée(s)`,
+        message: `Recording cancelled: ${errors.length} error(s) detected`,
         errors,
       });
     }
 
-    // 6. Transaction upsert — atomique : tout ou rien
+    // 6. Upsert transaction — atomic: all or nothing
     const results = await this.prisma.$transaction(
       dto.attendances.map((item) =>
         this.prisma.attendance.upsert({
@@ -225,7 +231,7 @@ export class AttendanceService {
     );
 
     this.logger.log(
-      `Présences enregistrées : ${results.length} pour séance ${session.id} (cours ${session.course.code})`,
+      `Attendances recorded: ${results.length} for session ${session.id} (course ${session.course.code})`,
     );
 
     return {

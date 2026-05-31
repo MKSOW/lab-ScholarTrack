@@ -9,24 +9,24 @@ import {
 
 export class CreateUserDto {
   @ApiProperty({ example: 'alice@example.com' })
-  @IsEmail({}, { message: 'Email invalide' })
+  @IsEmail({}, { message: 'Invalid email' })
   email: string;
 
   @ApiProperty({ example: 'Alice Martin' })
   @IsString()
-  @IsNotEmpty({ message: 'Le nom ne peut pas être vide' })
+  @IsNotEmpty({ message: 'Name cannot be empty' })
   name: string;
 
   @ApiProperty({ example: 'motdepasse123', minLength: 8 })
   @IsString()
   @MinLength(8, {
-    message: 'Le mot de passe doit contenir au moins 8 caractères',
+    message: 'Password must be at least 8 characters long',
   })
   password: string;
 
   @ApiProperty({ enum: ['STUDENT', 'TEACHER'], example: 'STUDENT' })
   @IsIn(['STUDENT', 'TEACHER'], {
-    message: "Le rôle doit être 'STUDENT' ou 'TEACHER'",
+    message: "Role must be 'STUDENT' or 'TEACHER'",
   })
   role: 'STUDENT' | 'TEACHER';
 }

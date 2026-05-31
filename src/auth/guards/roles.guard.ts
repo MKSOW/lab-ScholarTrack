@@ -22,7 +22,7 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    // request.user est peuplé par AuthGuard (@thallesp/nestjs-better-auth) avant ce guard
+    // request.user is populated by AuthGuard (@thallesp/nestjs-better-auth) before this guard
     const request = context
       .switchToHttp()
       .getRequest<{ user?: { role?: Role } }>();
@@ -30,7 +30,7 @@ export class RolesGuard implements CanActivate {
 
     if (!userRole || !requiredRoles.includes(userRole)) {
       throw new ForbiddenException(
-        `Accès refusé : rôle requis ${requiredRoles.join(' ou ')}, rôle actuel ${userRole ?? 'inconnu'}`,
+        `Access denied: required role ${requiredRoles.join(' or ')}, current role ${userRole ?? 'unknown'}`,
       );
     }
 

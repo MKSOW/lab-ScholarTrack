@@ -13,7 +13,7 @@ import {
 export class AttendanceItemDto {
   @ApiProperty({
     example: 'clxxxstudent1',
-    description: "Identifiant de l'étudiant",
+    description: 'Student id',
   })
   @IsString()
   @IsNotEmpty()
@@ -22,7 +22,7 @@ export class AttendanceItemDto {
   @ApiProperty({
     enum: AttendanceStatus,
     example: AttendanceStatus.PRESENT,
-    description: 'PRESENT, ABSENT, LATE ou EXCUSED',
+    description: 'PRESENT, ABSENT, LATE or EXCUSED',
   })
   @IsEnum(AttendanceStatus)
   status: AttendanceStatus;
@@ -32,7 +32,7 @@ export class RecordAttendanceDto {
   @ApiProperty({
     type: [AttendanceItemDto],
     description:
-      'Liste des présences à enregistrer en une seule requête. Upsert : remplace une présence déjà saisie.',
+      'List of attendances to record in a single request. Upsert: replaces an already-recorded attendance.',
   })
   @IsArray()
   @ArrayMinSize(1)

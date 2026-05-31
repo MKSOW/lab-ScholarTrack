@@ -15,8 +15,8 @@ import {
 } from 'class-validator';
 import { AssessmentTypeDto } from './assessment-type.dto';
 
-// Vérifie que la somme des poids des types d'évaluation est exactement 100.
-// Contrainte métier : les pondérations doivent couvrir 100% de la note finale.
+// Verifies that the sum of assessment-type weights is exactly 100.
+// Business rule: the weights must cover 100% of the final grade.
 @ValidatorConstraint({ name: 'weightsSum', async: false })
 export class WeightsSumConstraint implements ValidatorConstraintInterface {
   validate(types: AssessmentTypeDto[]) {
@@ -26,42 +26,42 @@ export class WeightsSumConstraint implements ValidatorConstraintInterface {
   }
 
   defaultMessage() {
-    return "La somme des poids des types d'évaluation doit être égale à 100";
+    return 'The sum of assessment-type weights must equal 100';
   }
 }
 
 export class CreateCourseDto {
-  @ApiProperty({ example: 'MATH101', description: 'Code unique du cours' })
+  @ApiProperty({ example: 'MATH101', description: 'Unique course code' })
   @IsString()
   @IsNotEmpty()
   code: string;
 
-  @ApiProperty({ example: 'Mathématiques avancées' })
+  @ApiProperty({ example: 'Advanced Mathematics' })
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: 'Cours de maths pour M1', required: false })
+  @ApiProperty({ example: 'Maths course for M1', required: false })
   @IsString()
   @IsOptional()
   description?: string;
 
   @ApiProperty({
     example: 30,
-    description: "Nombre maximum d'étudiants inscrits",
+    description: 'Maximum number of enrolled students',
   })
   @IsInt()
   @Min(1)
   capacity: number;
 
-  @ApiProperty({ example: '2025-S1', description: 'Semestre (ex: 2025-S1)' })
+  @ApiProperty({ example: '2025-S1', description: 'Semester (e.g. 2025-S1)' })
   @IsString()
   @IsNotEmpty()
   semester: string;
 
   @ApiProperty({
     example: 'clxxxid123',
-    description: "Identifiant de l'enseignant",
+    description: 'Teacher id',
   })
   @IsString()
   @IsNotEmpty()
@@ -69,7 +69,7 @@ export class CreateCourseDto {
 
   @ApiProperty({
     type: [AssessmentTypeDto],
-    description: "Types d'évaluation avec leurs poids (somme = 100)",
+    description: 'Assessment types with their weights (sum = 100)',
   })
   @IsArray()
   @ArrayMinSize(1)

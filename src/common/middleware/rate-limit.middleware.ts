@@ -6,16 +6,16 @@ interface RateLimitEntry {
   windowStart: number;
 }
 
-// PAS de @Injectable() : les paramètres primitifs du constructeur (number, Function)
-// ne peuvent pas être résolus par le système DI de NestJS.
-// Ce middleware est instancié manuellement dans AppModule.configure().
+// NO @Injectable(): the primitive constructor params (number, Function)
+// cannot be resolved by NestJS's DI system.
+// This middleware is instantiated manually in AppModule.configure().
 export class RateLimitMiddleware implements NestMiddleware {
   private readonly store = new Map<string, RateLimitEntry>();
 
   constructor(
     private readonly maxRequests: number = 100,
     private readonly windowMs: number = 15 * 60 * 1000,
-    // Injecté pour les tests : permet de contrôler le temps sans mock global
+    // Injected for tests: lets us control time without a global mock
     private readonly now: () => number = Date.now,
   ) {}
 
@@ -26,7 +26,7 @@ export class RateLimitMiddleware implements NestMiddleware {
     const entry = this.store.get(ip);
 
     if (!entry || timestamp - entry.windowStart >= this.windowMs) {
-      // Premiere requete ou fenetre expiree : nouvelle fenetre
+      // First request or expired window: start a new window
       this.store.set(ip, { count: 1, windowStart: timestamp });
       next();
       return;
@@ -35,7 +35,7 @@ export class RateLimitMiddleware implements NestMiddleware {
     if (entry.count >= this.maxRequests) {
       res.status(HttpStatus.TOO_MANY_REQUESTS).json({
         statusCode: 429,
-        message: 'Trop de requetes. Reessayez dans 15 minutes.',
+        message: 'Too many requests. Try again in 15 minutes.',
       });
       return;
     }
