@@ -34,29 +34,29 @@ describe('CoursesController', () => {
     expect(service.create).toHaveBeenCalledWith(dto);
   });
 
-  it('délègue enroll() en passant le studentId du DTO', async () => {
+  it('delegates enroll() passing the DTO studentId', async () => {
     await controller.enroll('c-1', { studentId: 's-1' });
     expect(service.enroll).toHaveBeenCalledWith('c-1', 's-1');
   });
 
-  it('délègue findAll() avec user puis filtre', async () => {
+  it('delegates findAll() with user then filter', async () => {
     const filter = { semester: '2026-S1' } as never;
     await controller.findAll(filter, REQ);
     expect(service.findAll).toHaveBeenCalledWith(REQ.user, filter);
   });
 
-  it('délègue findOne()', async () => {
+  it('delegates findOne()', async () => {
     await controller.findOne('c-1', REQ);
     expect(service.findOne).toHaveBeenCalledWith('c-1', REQ.user);
   });
 
-  it('délègue update()', async () => {
+  it('delegates update()', async () => {
     const dto = { name: 'New' } as never;
     await controller.update('c-1', dto);
     expect(service.update).toHaveBeenCalledWith('c-1', dto);
   });
 
-  it('délègue remove()', async () => {
+  it('delegates remove()', async () => {
     await controller.remove('c-1');
     expect(service.remove).toHaveBeenCalledWith('c-1');
   });

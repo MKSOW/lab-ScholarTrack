@@ -67,7 +67,7 @@ export class UsersService {
       },
     });
 
-    this.logger.log(`Compte créé : ${user.email} (rôle: ${user.role})`);
+    this.logger.log(`Account created: ${user.email} (role: ${user.role})`);
     return user;
   }
 }

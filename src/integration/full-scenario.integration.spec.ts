@@ -13,18 +13,18 @@ import { GradesController } from '../grades/grades.controller';
 import { GradesService } from '../grades/grades.service';
 
 /**
- * Test d'intégration — scénario complet de bout en bout.
+ * Integration test — full end-to-end scenario.
  *
- * Choix d'architecture : on n'utilise PAS la couche HTTP (supertest), car elle
- * entraînerait Better Auth (ESM) et la résolution du `req.user` par son guard.
- * À la place, on câble les VRAIS controllers + services + pipe via un TestingModule
- * NestJS, qui partagent tous un faux PrismaService *stateful en mémoire*.
- * L'état créé à une étape est relu à l'étape suivante, comme une vraie base —
- * ce qui permet de jouer un scénario métier réaliste et d'intégrer plusieurs
- * unités ensemble (DI réelle), au-delà d'un simple test unitaire.
+ * Architecture choice: we do NOT use the HTTP layer (supertest), because it
+ * would pull in Better Auth (ESM) and `req.user` resolution by its guard.
+ * Instead, we wire the REAL controllers + services + pipe through a NestJS
+ * TestingModule, all sharing a single *stateful in-memory* PrismaService double.
+ * State created in one step is read back in the next, like a real database —
+ * which lets us play a realistic business scenario and integrate several units
+ * together (real DI), beyond a simple unit test.
  */
 
-// ─── Faux Prisma in-memory ─────────────────────────────────────────────────────
+// ─── In-memory Prisma fake ─────────────────────────────────────────────────────
 
 interface Store {
   users: Array<{ id: string; role: Role; name: string; email: string }>;
@@ -61,8 +61,8 @@ interface Store {
   }>;
 }
 
-/** Construit un double de PrismaService qui couvre exactement la surface utilisée
- *  par CoursesService, GradesService et CapacityPipe dans ce scénario. */
+/** Builds a PrismaService double covering exactly the surface used by
+ *  CoursesService, GradesService and CapacityPipe in this scenario. */
 function createPrismaFake(store: Store) {
   let seq = 0;
   const nextId = (prefix: string) => `${prefix}-${++seq}`;
@@ -241,8 +241,8 @@ function createPrismaFake(store: Store) {
       },
     },
 
-    // $transaction : forme callback (reçoit la transaction = le fake lui-même)
-    // ou forme tableau (les promesses sont déjà lancées → Promise.all).
+    // $transaction: callback form (receives the transaction = the fake itself)
+    // or array form (promises already started → Promise.all).
     $transaction: (arg: unknown) =>
       typeof arg === 'function'
         ? (arg as (tx: typeof fake) => unknown)(fake)
@@ -273,9 +273,9 @@ const seedUsers = (store: Store) => {
 const makeCsvFile = (content: string): Express.Multer.File =>
   ({ buffer: Buffer.from(content, 'utf-8') }) as Express.Multer.File;
 
-// ─── Scénario ──────────────────────────────────────────────────────────────────
+// ─── Scenario ──────────────────────────────────────────────────────────────────
 
-describe('Scénario complet (intégration) — cours → inscription → notes → moyenne → CSV', () => {
+describe('Full scenario (integration) — course → enrollment → grades → average → CSV', () => {
   let store: Store;
   let coursesController: CoursesController;
   let gradesController: GradesController;
@@ -307,11 +307,11 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
     capacityPipe = moduleRef.get(CapacityPipe);
   });
 
-  it('déroule le parcours métier complet de bout en bout', async () => {
-    // ── 1. L'admin crée un cours (capacité 2, 2 types d'évaluation) ────────────
+  it('runs the full business flow end to end', async () => {
+    // ── 1. Admin creates a course (capacity 2, 2 assessment types) ────────────
     const course = await coursesController.create({
       code: 'MATH101',
-      name: 'Algèbre',
+      name: 'Algebra',
       capacity: 2,
       semester: '2026-S1',
       teacherId: TEACHER.id,
@@ -326,7 +326,7 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
     const ccId = course.assessmentTypes.find((a) => a.name === 'CC')!.id;
     const examId = course.assessmentTypes.find((a) => a.name === 'Examen')!.id;
 
-    // ── 2. L'admin inscrit Alice — le CapacityPipe s'exécute en amont ──────────
+    // ── 2. Admin enrolls Alice — the CapacityPipe runs upstream ──────────
     const checkedId = await capacityPipe.transform(course.id);
     expect(checkedId).toBe(course.id);
     const enrollment = await coursesController.enroll(checkedId, {
@@ -335,12 +335,12 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
     expect(enrollment.student.id).toBe(STUDENT_1.id);
     expect(store.enrollments).toHaveLength(1);
 
-    // ── 3. Réinscrire Alice → 409 (le service détecte le doublon) ──────────────
+    // ── 3. Re-enroll Alice → 409 (the service detects the duplicate) ──────────────
     await expect(
       coursesController.enroll(course.id, { studentId: STUDENT_1.id }),
     ).rejects.toBeInstanceOf(ConflictException);
 
-    // ── 4. Inscrire Bob (capacité 2 → OK), puis Charlie → pipe refuse (complet)─
+    // ── 4. Enroll Bob (capacity 2 → OK), then Charlie → pipe rejects (full) ─
     await coursesController.enroll(await capacityPipe.transform(course.id), {
       studentId: STUDENT_2.id,
     });
@@ -348,7 +348,7 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
       ConflictException,
     );
 
-    // ── 5. Le prof saisit la note de CC d'Alice ────────────────────────────────
+    // ── 5. The teacher records Alice's CC grade ────────────────────────────────
     const grade = await gradesController.create(
       {
         courseId: course.id,
@@ -360,7 +360,7 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
     );
     expect(grade.value).toBe(14);
 
-    // Doublon de note → 409
+    // Duplicate grade → 409
     await expect(
       gradesController.create(
         {
@@ -373,7 +373,7 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
       ),
     ).rejects.toBeInstanceOf(ConflictException);
 
-    // Note pour Charlie (non inscrit) → 400
+    // Grade for Charlie (not enrolled) → 400
     await expect(
       gradesController.create(
         {
@@ -386,7 +386,7 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    // ── 6. Moyenne partielle (seul le CC est saisi) → isComplete false ─────────
+    // ── 6. Partial average (only CC recorded) → isComplete false ─────────
     const partial = await gradesController.getWeightedAverage(
       STUDENT_1.id,
       course.id,
@@ -394,10 +394,10 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
     );
     expect(partial.isComplete).toBe(false);
     expect(partial.coveredWeight).toBe(40);
-    expect(partial.average).toBe(14); // normalisée sur le poids couvert
+    expect(partial.average).toBe(14); // normalized over the covered weight
 
-    // ── 7. Import CSV de la note d'examen d'Alice → tout-ou-rien ───────────────
-    const csv = `studentId,assessmentTypeId,value,comment\n${STUDENT_1.id},${examId},16,Bien`;
+    // ── 7. CSV import of Alice's exam grade → all-or-nothing ───────────────
+    const csv = `studentId,assessmentTypeId,value,comment\n${STUDENT_1.id},${examId},16,Good`;
     const report = await gradesController.importFromCsv(
       course.id,
       makeCsvFile(csv),
@@ -406,7 +406,7 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
     expect(report.imported).toBe(1);
     expect(store.grades).toHaveLength(2);
 
-    // ── 8. Moyenne désormais complète : (14×40 + 16×60)/100 = 15.2 ─────────────
+    // ── 8. Average now complete: (14×40 + 16×60)/100 = 15.2 ─────────────
     const full = await gradesController.getWeightedAverage(
       STUDENT_1.id,
       course.id,
@@ -417,10 +417,10 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
     expect(full.average).toBe(15.2);
   });
 
-  it("applique le RBAC : un étudiant ne peut pas lire la moyenne d'un autre", async () => {
+  it("enforces RBAC: a student cannot read another student's average", async () => {
     const course = await coursesController.create({
       code: 'PHY101',
-      name: 'Physique',
+      name: 'Physics',
       capacity: 5,
       semester: '2026-S1',
       teacherId: TEACHER.id,
@@ -428,7 +428,7 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
     });
     await coursesController.enroll(course.id, { studentId: STUDENT_1.id });
 
-    // Bob (student-2) tente de lire la moyenne d'Alice (student-1)
+    // Bob (student-2) tries to read Alice's average (student-1)
     await expect(
       gradesController.getWeightedAverage(STUDENT_1.id, course.id, {
         user: STUDENT_2,
@@ -436,10 +436,10 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('rejette tout import CSV si une seule ligne est invalide (tout-ou-rien)', async () => {
+  it('rejects the whole CSV import if a single row is invalid (all-or-nothing)', async () => {
     const course = await coursesController.create({
       code: 'BIO101',
-      name: 'Biologie',
+      name: 'Biology',
       capacity: 5,
       semester: '2026-S1',
       teacherId: TEACHER.id,
@@ -448,18 +448,18 @@ describe('Scénario complet (intégration) — cours → inscription → notes �
     const ccId = course.assessmentTypes[0].id;
     await coursesController.enroll(course.id, { studentId: STUDENT_1.id });
 
-    // 2 lignes : la 1re valide, la 2nde a une note hors bornes (> 20)
+    // 2 rows: the 1st valid, the 2nd has an out-of-range grade (> 20)
     const csv =
       `studentId,assessmentTypeId,value,comment\n` +
       `${STUDENT_1.id},${ccId},15,ok\n` +
-      `${STUDENT_1.id},${ccId},42,horsbornes`;
+      `${STUDENT_1.id},${ccId},42,outofrange`;
 
     await expect(
       gradesController.importFromCsv(course.id, makeCsvFile(csv), {
         user: TEACHER,
       }),
     ).rejects.toThrow();
-    // Aucune note insérée : tout-ou-rien respecté
+    // No grade inserted: all-or-nothing respected
     expect(store.grades).toHaveLength(0);
   });
 });

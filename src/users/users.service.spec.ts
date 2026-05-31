@@ -6,8 +6,8 @@ import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from './users.service';
 
-// Mock du module d'auth : `../auth/auth` instancie un vrai PrismaClient + Better Auth
-// (ESM) au chargement. On le remplace par un faux `auth.api.signUpEmail` pilotable.
+// Mock of the auth module: `../auth/auth` instantiates a real PrismaClient + Better Auth
+// (ESM) at load time. We replace it with a controllable fake `auth.api.signUpEmail`.
 jest.mock('../auth/auth', () => ({
   auth: {
     api: {
@@ -15,7 +15,7 @@ jest.mock('../auth/auth', () => ({
     },
   },
 }));
-// On récupère la référence mockée pour piloter ses retours dans chaque test.
+// Grab the mocked reference to drive its return values in each test.
 import { auth } from '../auth/auth';
 const signUpEmail = auth.api.signUpEmail as jest.Mock;
 
@@ -59,7 +59,7 @@ describe('UsersService', () => {
   });
 
   describe('create', () => {
-    it("crée le compte via Better Auth puis applique le rôle demandé par l'admin", async () => {
+    it('creates the account via Better Auth then applies the admin-requested role', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       signUpEmail.mockResolvedValue({ user: { id: 'user-1' } });
       prisma.user.update.mockResolvedValue(CREATED_USER);
@@ -67,14 +67,14 @@ describe('UsersService', () => {
       const result = await service.create(DTO);
 
       expect(result).toEqual(CREATED_USER);
-      // Vérification d'unicité de l'email avant tout appel à Better Auth
+      // Email uniqueness check before any Better Auth call
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: DTO.email },
       });
       expect(signUpEmail).toHaveBeenCalledWith({
         body: { email: DTO.email, name: DTO.name, password: DTO.password },
       });
-      // Le rôle est appliqué en update sur l'utilisateur créé (id renvoyé par Better Auth)
+      // The role is applied via update on the created user (id returned by Better Auth)
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'user-1' },
@@ -83,7 +83,7 @@ describe('UsersService', () => {
       );
     });
 
-    it("rejette avec 409 si l'email existe déjà, sans appeler Better Auth", async () => {
+    it('rejects with 409 when the email already exists, without calling Better Auth', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'existing' });
 
       await expect(service.create(DTO)).rejects.toBeInstanceOf(
@@ -93,7 +93,7 @@ describe('UsersService', () => {
       expect(prisma.user.update).not.toHaveBeenCalled();
     });
 
-    it('rejette avec 500 si Better Auth échoue', async () => {
+    it('rejects with 500 when Better Auth fails', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       signUpEmail.mockRejectedValue(new Error('better-auth down'));
 

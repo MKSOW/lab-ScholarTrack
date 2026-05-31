@@ -21,7 +21,7 @@ describe('AdminController', () => {
   });
 
   describe('importEnrollments', () => {
-    it('délègue au service quand un fichier est fourni', async () => {
+    it('delegates to the service when a file is provided', async () => {
       const file = { originalname: 'e.csv' } as Express.Multer.File;
       await expect(controller.importEnrollments(file)).resolves.toEqual({
         imported: 3,
@@ -29,7 +29,7 @@ describe('AdminController', () => {
       expect(service.importEnrollmentsFromCsv).toHaveBeenCalledWith(file);
     });
 
-    it('rejette avec 400 si aucun fichier', () => {
+    it('rejects with 400 when no file', () => {
       expect(() =>
         controller.importEnrollments(
           undefined as unknown as Express.Multer.File,
@@ -39,13 +39,13 @@ describe('AdminController', () => {
     });
   });
 
-  it('délègue getSemesterStats()', async () => {
+  it('delegates getSemesterStats()', async () => {
     await controller.getSemesterStats('2026-S1');
     expect(service.getSemesterStats).toHaveBeenCalledWith('2026-S1');
   });
 
   describe('exportSemesterCsv', () => {
-    it('positionne les en-têtes de téléchargement et envoie le CSV', async () => {
+    it('sets the download headers and sends the CSV', async () => {
       const res = {
         setHeader: jest.fn(),
         send: jest.fn(),
