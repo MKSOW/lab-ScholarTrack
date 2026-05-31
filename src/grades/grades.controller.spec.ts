@@ -27,7 +27,7 @@ describe('GradesController', () => {
     controller = new GradesController(service as unknown as GradesService);
   });
 
-  it('délègue create() avec le user de la requête', async () => {
+  it('delegates create() with the request user', async () => {
     const dto = {
       courseId: 'c-1',
       studentId: 's-1',
@@ -38,23 +38,23 @@ describe('GradesController', () => {
     expect(service.create).toHaveBeenCalledWith(dto, REQ.user);
   });
 
-  it('délègue findByCourse()', async () => {
+  it('delegates findByCourse()', async () => {
     await controller.findByCourse('c-1', REQ);
     expect(service.findByCourse).toHaveBeenCalledWith('c-1', REQ.user);
   });
 
-  it('délègue findByStudent()', async () => {
+  it('delegates findByStudent()', async () => {
     await controller.findByStudent('s-1', REQ);
     expect(service.findByStudent).toHaveBeenCalledWith('s-1', REQ.user);
   });
 
-  it('délègue importFromCsv() quand un fichier est fourni', async () => {
+  it('delegates importFromCsv() when a file is provided', async () => {
     const file = { originalname: 'g.csv' } as Express.Multer.File;
     await controller.importFromCsv('c-1', file, REQ);
     expect(service.importFromCsv).toHaveBeenCalledWith('c-1', file, REQ.user);
   });
 
-  it('rejette importFromCsv() avec 400 si aucun fichier', () => {
+  it('rejects importFromCsv() with 400 when no file', () => {
     expect(() =>
       controller.importFromCsv(
         'c-1',
@@ -65,7 +65,7 @@ describe('GradesController', () => {
     expect(service.importFromCsv).not.toHaveBeenCalled();
   });
 
-  it('délègue getWeightedAverage()', async () => {
+  it('delegates getWeightedAverage()', async () => {
     await controller.getWeightedAverage('s-1', 'c-1', REQ);
     expect(service.getWeightedAverage).toHaveBeenCalledWith(
       's-1',

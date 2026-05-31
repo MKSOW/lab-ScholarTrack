@@ -3,18 +3,18 @@ import { auth } from '../src/auth/auth';
 
 const prisma = new PrismaClient();
 
-// Récupère une variable d'environnement obligatoire — échoue tôt si absente.
+// Reads a required environment variable — fails fast if missing.
 function requireEnv(key: string): string {
   const value = process.env[key];
   if (!value) {
-    throw new Error(`Variable d'environnement manquante : ${key}`);
+    throw new Error(`Missing environment variable: ${key}`);
   }
   return value;
 }
 
-// Crée un utilisateur s'il n'existe pas déjà (seed idempotent).
-// Passe par Better Auth pour que le mot de passe soit hashé correctement,
-// puis met à jour le rôle (Better Auth crée tout en STUDENT par défaut).
+// Creates a user if it does not already exist (idempotent seed).
+// Goes through Better Auth so the password is hashed correctly,
+// then updates the role (Better Auth creates everything as STUDENT by default).
 async function seedUser(opts: {
   email: string;
   password: string;
@@ -26,7 +26,7 @@ async function seedUser(opts: {
   });
   if (existing) {
     console.log(
-      `ℹ️  Déjà présent : ${opts.email} (${existing.role}) — id=${existing.id}`,
+      `ℹ️  Already present: ${opts.email} (${existing.role}) — id=${existing.id}`,
     );
     return existing.id;
   }
@@ -44,14 +44,16 @@ async function seedUser(opts: {
     data: { role: opts.role, emailVerified: true },
   });
 
-  console.log(`✅ ${opts.role} créé : ${opts.email} — id=${response.user.id}`);
+  console.log(
+    `✅ ${opts.role} created: ${opts.email} — id=${response.user.id}`,
+  );
   return response.user.id;
 }
 
 async function main() {
   const seedPassword = requireEnv('SEED_PASSWORD');
 
-  // --- Admin (mot de passe dédié, distinct des comptes de test) ---
+  // --- Admin (dedicated password, distinct from test accounts) ---
   await seedUser({
     email: requireEnv('ADMIN_EMAIL'),
     password: requireEnv('ADMIN_PASSWORD'),
@@ -59,7 +61,7 @@ async function main() {
     role: Role.ADMIN,
   });
 
-  // --- Enseignants ---
+  // --- Teachers ---
   const teachers = [
     {
       email: requireEnv('TEACHER_1_EMAIL'),
@@ -74,7 +76,7 @@ async function main() {
     await seedUser({ ...teacher, password: seedPassword, role: Role.TEACHER });
   }
 
-  // --- Étudiants ---
+  // --- Students ---
   const students = [
     {
       email: requireEnv('STUDENT_1_EMAIL'),
@@ -93,12 +95,12 @@ async function main() {
     await seedUser({ ...student, password: seedPassword, role: Role.STUDENT });
   }
 
-  console.log('\n🌱 Seed terminé.');
+  console.log('\n🌱 Seed complete.');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seed échoué :', e);
+    console.error('❌ Seed failed:', e);
     process.exit(1);
   })
   .finally(async () => {

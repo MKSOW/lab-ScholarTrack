@@ -28,7 +28,7 @@ describe('CoursesController', () => {
     controller = new CoursesController(service as unknown as CoursesService);
   });
 
-  it('délègue create()', async () => {
+  it('delegates create()', async () => {
     const dto = { code: 'M101', name: 'Math' } as never;
     await expect(controller.create(dto)).resolves.toBe(RESULT);
     expect(service.create).toHaveBeenCalledWith(dto);
